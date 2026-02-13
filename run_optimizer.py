@@ -22,10 +22,11 @@ def main() -> None:
     parser.add_argument("--train-days", default="504,756,1008")
     parser.add_argument("--test-days", default="42,63,126")
     parser.add_argument("--txn-cost-bps", default="2,5,10")
+    parser.add_argument("--focused-grid-n", type=int, default=11)
     parser.add_argument("--top", type=int, default=10)
     args = parser.parse_args()
 
-    results, best = run_two_pass_sweep(
+    results, best, detail = run_two_pass_sweep(
         ticker=args.ticker.upper(),
         validation=args.validation,
         benchmark=args.benchmark.upper(),
@@ -33,6 +34,7 @@ def main() -> None:
         train_days_options=parse_int_list(args.train_days),
         test_days_options=parse_int_list(args.test_days),
         txn_cost_options=parse_float_list(args.txn_cost_bps),
+        focused_grid_n=args.focused_grid_n,
     )
 
     print("\n=== Best configuration ===")
@@ -51,11 +53,15 @@ def main() -> None:
         "CAGR",
         "Max Drawdown",
         "Alpha (ann)",
+        "Beta",
         "Turnover",
         "score",
     ]:
         if k in best:
             print(f"{k}: {best[k]}")
+
+    print("\n=== Copy/paste summary ===")
+    print(detail["summary_text"])
 
     print(f"\n=== Top {args.top} rows by score ===")
     cols = [
@@ -69,6 +75,7 @@ def main() -> None:
         "CAGR",
         "Max Drawdown",
         "Alpha (ann)",
+        "Beta",
         "Turnover",
         "score",
     ]

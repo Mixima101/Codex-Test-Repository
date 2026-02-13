@@ -77,3 +77,14 @@ python run_optimizer.py \
 ```
 
 The script prints the best configuration and top-ranked combinations by composite score.
+
+
+## Optimizer UI dashboard
+
+For an interactive optimizer workflow with progress updates and live best-so-far metrics:
+
+```bash
+streamlit run app_optimizer.py
+```
+
+This UI lets you set fixed inputs (ticker/benchmark/etc.), runs the automated sweep, shows a progress bar, and provides a copy/paste text summary for the best configuration.
