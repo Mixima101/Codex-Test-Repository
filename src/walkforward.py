@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import product
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,21 @@ class FoldResult:
     step: float
     max_step: float
     train_objective: float
+
+
+@dataclass(frozen=True)
+class MenuSettings:
+    oos_years: int
+    train_days: int
+    test_days: int
+    txn_cost_bps: float
+
+
+@dataclass
+class OptimizationResult:
+    settings: MenuSettings
+    grid: list[tuple[float, float]]
+    summary: dict[str, float]
 
 
 def build_param_grid(step_min: float, step_max: float, step_n: int, max_min: float, max_max: float, max_n: int) -> list[tuple[float, float]]:
@@ -125,3 +141,80 @@ def run_walk_forward_for_ticker(
         "typical": typical,
         "metrics": metrics,
     }
+
+
+def focused_grid_around_typical(typical: dict, step_n: int = 11, max_n: int = 11) -> list[tuple[float, float]]:
+    center_step = float(typical["median_step"])
+    center_max = float(typical["median_max_step"])
+    step_min = max(0.001, center_step - 0.015)
+    step_max = min(0.08, center_step + 0.015)
+    max_min = max(0.08, center_max - 0.06)
+    max_max = min(0.40, center_max + 0.06)
+    return build_param_grid(step_min, step_max, step_n, max_min, max_max, max_n)
+
+
+def optimize_menu_settings(
+    price_map: dict[str, pd.DataFrame],
+    benchmark_returns: pd.Series,
+    tickers_to_run: list[str],
+    progress_cb: Callable[[int, int, str], None] | None = None,
+) -> OptimizationResult:
+    candidates = [
+        MenuSettings(oos_years=oos, train_days=train, test_days=test, txn_cost_bps=cost)
+        for oos, train, test, cost in product([5, 7], [504, 756, 1008], [42, 63, 126], [2.0, 5.0, 10.0])
+    ]
+    coarse_grid = build_param_grid(0.005, 0.08, 9, 0.08, 0.40, 9)
+
+    best: OptimizationResult | None = None
+    total = len(candidates)
+    for i, candidate in enumerate(candidates, start=1):
+        per_ticker = {}
+        for ticker in tickers_to_run:
+            if ticker not in price_map:
+                continue
+            coarse = run_walk_forward_for_ticker(
+                price_df=price_map[ticker],
+                benchmark_returns=benchmark_returns,
+                train_days=candidate.train_days,
+                test_days=candidate.test_days,
+                oos_years=candidate.oos_years,
+                grid=coarse_grid,
+                txn_cost_bps=candidate.txn_cost_bps,
+            )
+            fine_grid = focused_grid_around_typical(coarse["typical"], step_n=11, max_n=11)
+            per_ticker[ticker] = run_walk_forward_for_ticker(
+                price_df=price_map[ticker],
+                benchmark_returns=benchmark_returns,
+                train_days=candidate.train_days,
+                test_days=candidate.test_days,
+                oos_years=candidate.oos_years,
+                grid=fine_grid,
+                txn_cost_bps=candidate.txn_cost_bps,
+            )
+
+        if per_ticker:
+            cagr_values = [v["metrics"]["CAGR"] for v in per_ticker.values()]
+            beta_values = [v["metrics"]["Beta"] for v in per_ticker.values()]
+            mean_cagr = float(np.nanmean(cagr_values))
+            mean_beta = float(np.nanmean(beta_values))
+            score = mean_cagr - (0.15 * abs(mean_beta - 1.0))
+
+            summary = {
+                "score": score,
+                "mean_cagr": mean_cagr,
+                "mean_beta": mean_beta,
+            }
+            if best is None or summary["score"] > best.summary["score"]:
+                primary_typical = per_ticker[tickers_to_run[0]]["typical"]
+                best = OptimizationResult(
+                    settings=candidate,
+                    grid=focused_grid_around_typical(primary_typical, step_n=11, max_n=11),
+                    summary=summary,
+                )
+
+        if progress_cb:
+            progress_cb(i, total, f"Evaluated {i}/{total} menu combinations")
+
+    if best is None:
+        raise ValueError("Unable to score any menu setting combinations.")
+    return best
