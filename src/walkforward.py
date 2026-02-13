@@ -118,10 +118,24 @@ def run_walk_forward_for_ticker(
         "median_max_step": float(fold_df["max_step"].median()),
     }
 
+    grouped = (
+        fold_df.groupby(["step", "max_step"], as_index=False)
+        .agg(folds_selected=("fold", "count"), mean_train_objective=("train_objective", "mean"))
+        .sort_values(["folds_selected", "mean_train_objective"], ascending=[False, False])
+    )
+    recommended_row = grouped.iloc[0]
+    recommended = {
+        "step": float(recommended_row["step"]),
+        "max_step": float(recommended_row["max_step"]),
+        "folds_selected": int(recommended_row["folds_selected"]),
+        "mean_train_objective": float(recommended_row["mean_train_objective"]),
+    }
+
     return {
         "oos_returns": oos_returns,
         "oos_equity": (1 + oos_returns).cumprod(),
         "folds": fold_df,
         "typical": typical,
+        "recommended": recommended,
         "metrics": metrics,
     }

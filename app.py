@@ -107,6 +107,8 @@ if run_btn:
         st.dataframe(res["folds"], use_container_width=True)
         st.markdown("**Typical params (median across folds)**")
         st.json(res["typical"])
+        st.markdown("**Recommended params (most stable across folds)**")
+        st.json(res["recommended"])
 
     st.subheader("Validation summary")
     rows = []
