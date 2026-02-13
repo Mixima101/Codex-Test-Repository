@@ -23,6 +23,7 @@ with st.sidebar:
     st.session_state.setdefault("max_max", 0.3)
     st.session_state.setdefault("max_n", 7)
     st.session_state.setdefault("txn_cost_bps", 2.0)
+    st.session_state.setdefault("optimized_recently", False)
 
     primary = st.text_input("Primary ticker", value="AAPL")
     validation = st.text_input("Validation tickers (comma-separated)", value="MSFT,GOOGL,AMZN")
@@ -64,7 +65,10 @@ def cached_walk_forward(price_df: pd.DataFrame, benchmark_returns: pd.Series, tr
     )
 
 
-if optimize_btn or run_btn:
+auto_run_after_opt = bool(st.session_state.pop("run_after_optimization", False))
+should_run = optimize_btn or run_btn or auto_run_after_opt
+
+if should_run:
     tickers = normalize_tickers(primary, validation, benchmark)
     start = (dt.date.today() - dt.timedelta(days=365 * 12)).isoformat()
     end = dt.date.today().isoformat()
@@ -109,21 +113,30 @@ if optimize_btn or run_btn:
         st.session_state["max_max"] = round(max(max_steps), 2)
         st.session_state["max_n"] = 11
 
-        st.success(
-            "Optimized menu settings applied. "
-            f"Mean CAGR={best.summary['mean_cagr']:.2%}, Mean Beta={best.summary['mean_beta']:.2f}."
-        )
+        st.session_state["optimized_recently"] = True
+        st.session_state["last_optimization_summary"] = best.summary
+        st.session_state["run_after_optimization"] = True
+        st.rerun()
 
-        oos_years = st.session_state["oos_years"]
-        train_days = st.session_state["train_days"]
-        test_days = st.session_state["test_days"]
-        txn_cost_bps = st.session_state["txn_cost_bps"]
-        step_min = st.session_state["step_min"]
-        step_max = st.session_state["step_max"]
-        step_n = st.session_state["step_n"]
-        max_min = st.session_state["max_min"]
-        max_max = st.session_state["max_max"]
-        max_n = st.session_state["max_n"]
+    if st.session_state.get("optimized_recently"):
+        summary = st.session_state.get("last_optimization_summary", {})
+        st.success(
+            "Optimized menu settings applied and used for this run. "
+            f"Mean CAGR={summary.get('mean_cagr', float('nan')):.2%}, "
+            f"Mean Beta={summary.get('mean_beta', float('nan')):.2f}."
+        )
+        st.session_state["optimized_recently"] = False
+
+    oos_years = st.session_state["oos_years"]
+    train_days = st.session_state["train_days"]
+    test_days = st.session_state["test_days"]
+    txn_cost_bps = st.session_state["txn_cost_bps"]
+    step_min = st.session_state["step_min"]
+    step_max = st.session_state["step_max"]
+    step_n = st.session_state["step_n"]
+    max_min = st.session_state["max_min"]
+    max_max = st.session_state["max_max"]
+    max_n = st.session_state["max_n"]
 
     grid = build_param_grid(step_min, step_max, step_n, max_min, max_max, max_n)
     st.caption(f"Grid size: {len(grid)} parameter pairs.")
