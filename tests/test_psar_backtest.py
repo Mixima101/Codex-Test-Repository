@@ -3,6 +3,7 @@ import pandas as pd
 
 from src.backtest import run_psar_strategy
 from src.psar import parabolic_sar
+from src.walkforward import run_walk_forward_for_ticker
 
 
 def synthetic_ohlc(n: int = 120) -> pd.DataFrame:
@@ -32,3 +33,24 @@ def test_backtest_return_alignment():
     signal = (bt["Close"] > bt["psar"]).astype(int)
     expected = signal.shift(1).fillna(0).astype(int)
     assert bt["position"].equals(expected)
+
+
+def test_walkforward_returns_recommended_params():
+    df = synthetic_ohlc(900)
+    bench = pd.Series(0.0, index=df.index)
+
+    res = run_walk_forward_for_ticker(
+        price_df=df,
+        benchmark_returns=bench,
+        train_days=252,
+        test_days=63,
+        oos_years=2,
+        grid=[(0.01, 0.1), (0.02, 0.2), (0.03, 0.3)],
+        txn_cost_bps=0.0,
+    )
+
+    rec = res["recommended"]
+    assert {"step", "max_step", "folds_selected", "mean_train_objective"}.issubset(rec.keys())
+    assert rec["folds_selected"] >= 1
+    fold_pairs = set(tuple(x) for x in res["folds"][["step", "max_step"]].to_numpy())
+    assert (rec["step"], rec["max_step"]) in fold_pairs

@@ -60,3 +60,20 @@ Then open the local URL printed by Streamlit (usually `http://localhost:8501`).
 ```bash
 pytest -q
 ```
+
+## Batch optimizer (no UI)
+
+To sweep walk-forward menu options and automatically run a two-pass (coarse then focused) SAR grid search:
+
+```bash
+python run_optimizer.py \
+  --ticker JPM \
+  --validation BAC,C,MS,WFC \
+  --benchmark XLF \
+  --oos-years 5,7 \
+  --train-days 504,756,1008 \
+  --test-days 42,63,126 \
+  --txn-cost-bps 2,5,10
+```
+
+The script prints the best configuration and top-ranked combinations by composite score.
