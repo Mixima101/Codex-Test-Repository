@@ -44,6 +44,103 @@ def build_param_grid(step_min: float, step_max: float, step_n: int, max_min: flo
     return [(float(s), float(m)) for s, m in product(step_vals, max_vals) if m >= s]
 
 
+def summarize_trade_stats(oos_bt: pd.DataFrame) -> dict[str, float | int]:
+    trades: list[float] = []
+    in_trade = False
+    trade_return = 1.0
+
+    for _, row in oos_bt.iterrows():
+        position = int(row["position"])
+        strat_ret = float(row["strategy_return"])
+
+        if position == 1 and not in_trade:
+            in_trade = True
+            trade_return = 1.0
+
+        if in_trade:
+            trade_return *= 1 + strat_ret
+
+            if position == 0:
+                trades.append(trade_return - 1.0)
+                in_trade = False
+
+    if in_trade:
+        trades.append(trade_return - 1.0)
+
+    if not trades:
+        return {
+            "Trades": 0,
+            "Winning Trades": 0,
+            "Losing Trades": 0,
+            "Win Rate": np.nan,
+            "Avg Win %": np.nan,
+            "Avg Loss %": np.nan,
+        }
+
+    trade_returns = np.asarray(trades, dtype=float)
+    winners = trade_returns[trade_returns > 0]
+    losers = trade_returns[trade_returns < 0]
+
+    return {
+        "Trades": int(trade_returns.size),
+        "Winning Trades": int(winners.size),
+        "Losing Trades": int(losers.size),
+        "Win Rate": float(winners.size / trade_returns.size),
+        "Avg Win %": float(np.mean(winners) * 100) if winners.size else np.nan,
+        "Avg Loss %": float(np.mean(losers) * 100) if losers.size else np.nan,
+    }
+
+
+def build_diagnostic_text(
+    metrics: dict[str, float | int],
+    fold_df: pd.DataFrame,
+    typical: dict[str, float],
+    oos_bt: pd.DataFrame,
+) -> str:
+    lines = ["Diagnostic Text", "===============", "", "Strategy stats:"]
+    for key, value in metrics.items():
+        if isinstance(value, (int, np.integer)):
+            formatted = f"{int(value)}"
+        elif pd.isna(value):
+            formatted = "nan"
+        else:
+            formatted = f"{float(value):.6f}"
+        lines.append(f"- {key}: {formatted}")
+
+    lines.extend(["", "Fold summary:"])
+    for row in fold_df.itertuples(index=False):
+        lines.append(
+            "- Fold {fold}: train {train_start}→{train_end}, test {test_start}→{test_end}, "
+            "step={step:.4f}, max_step={max_step:.4f}, train_obj={train_objective:.4f}".format(
+                fold=row.fold,
+                train_start=pd.Timestamp(row.train_start).date(),
+                train_end=pd.Timestamp(row.train_end).date(),
+                test_start=pd.Timestamp(row.test_start).date(),
+                test_end=pd.Timestamp(row.test_end).date(),
+                step=float(row.step),
+                max_step=float(row.max_step),
+                train_objective=float(row.train_objective),
+            )
+        )
+
+    lines.extend(
+        [
+            "",
+            "Typical params:",
+            f"- median_step: {typical['median_step']:.6f}",
+            f"- median_max_step: {typical['median_max_step']:.6f}",
+            "",
+            "Out-of-sample diagnostics:",
+            f"- OOS rows: {len(oos_bt)}",
+            f"- Date range: {oos_bt.index.min().date()} to {oos_bt.index.max().date()}",
+            f"- Buy signals: {int(oos_bt['buy_signal'].sum())}",
+            f"- Sell signals: {int(oos_bt['sell_signal'].sum())}",
+        ]
+    )
+
+    return "\n".join(lines)
+
+
 def run_walk_forward_for_ticker(
     price_df: pd.DataFrame,
     benchmark_returns: pd.Series,
@@ -122,11 +219,9 @@ def run_walk_forward_for_ticker(
     oos_bt = pd.concat(oos_detail).sort_index()
     turnover = float(oos_bt["position_change"].mean() * 252)
     invested_pct = float(oos_bt["position"].mean())
-    trade_count = int(((oos_bt["position"] == 1) & (oos_bt["position"].shift(1).fillna(0) == 0)).sum())
-
     bench_oos = benchmark_returns.reindex(oos_returns.index).fillna(0.0)
     metrics = summarize_performance(oos_returns, bench_oos, turnover=turnover, invested_pct=invested_pct)
-    metrics["Trades"] = trade_count
+    metrics.update(summarize_trade_stats(oos_bt))
 
     buy_hold_equity = (oos_bt["Close"] / float(oos_bt["Close"].iloc[0])) * float((1 + oos_returns.iloc[0]))
     oos_bt = oos_bt.assign(
@@ -139,6 +234,7 @@ def run_walk_forward_for_ticker(
         "median_step": float(fold_df["step"].median()),
         "median_max_step": float(fold_df["max_step"].median()),
     }
+    diagnostic_text = build_diagnostic_text(metrics, fold_df, typical, oos_bt)
 
     return {
         "oos_returns": oos_returns,
@@ -146,6 +242,7 @@ def run_walk_forward_for_ticker(
         "folds": fold_df,
         "typical": typical,
         "metrics": metrics,
+        "diagnostic_text": diagnostic_text,
         "buy_hold_equity": buy_hold_equity,
         "oos_detail": oos_bt[["Close", "position", "buy_signal", "sell_signal"]],
     }
