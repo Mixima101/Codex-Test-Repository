@@ -71,10 +71,73 @@ def cached_walk_forward(price_df: pd.DataFrame, benchmark_returns: pd.Series, tr
     )
 
 
-auto_run_after_opt = bool(st.session_state.pop("run_after_optimization", False))
-should_run = optimize_btn or run_btn or auto_run_after_opt
+def render_primary(primary_ticker: str, result: dict):
+    st.subheader(f"Primary ticker: {primary_ticker}")
 
-if should_run:
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.line_chart(result["oos_equity"], y_label="Equity", x_label="Date")
+
+        state_key_buy_hold = f"show_buy_hold_{primary_ticker}"
+        state_key_trades = f"show_trade_chart_{primary_ticker}"
+        st.session_state.setdefault(state_key_buy_hold, False)
+        st.session_state.setdefault(state_key_trades, False)
+
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            if st.button(
+                "Buy & hold comparison" + (" ✓" if st.session_state[state_key_buy_hold] else ""),
+                key=f"btn_buy_hold_{primary_ticker}",
+                type="secondary",
+                use_container_width=True,
+            ):
+                st.session_state[state_key_buy_hold] = not st.session_state[state_key_buy_hold]
+        with btn_col2:
+            if st.button(
+                "Price + trade markers" + (" ✓" if st.session_state[state_key_trades] else ""),
+                key=f"btn_trade_markers_{primary_ticker}",
+                type="secondary",
+                use_container_width=True,
+            ):
+                st.session_state[state_key_trades] = not st.session_state[state_key_trades]
+
+        if st.session_state[state_key_buy_hold]:
+            compare_df = pd.DataFrame(
+                {
+                    "Strategy equity": result["oos_equity"],
+                    "Buy & hold": result["buy_hold_equity"],
+                }
+            )
+            st.line_chart(compare_df, y_label="Equity", x_label="Date")
+
+        if st.session_state[state_key_trades]:
+            price_df = result["oos_detail"].copy().reset_index().rename(columns={"index": "Date"})
+            line = alt.Chart(price_df).mark_line(color="#4e79a7").encode(x="Date:T", y="Close:Q")
+            buys = (
+                alt.Chart(price_df[price_df["buy_signal"]])
+                .mark_point(shape="triangle-up", color="green", size=80)
+                .encode(x="Date:T", y="Close:Q")
+            )
+            sells = (
+                alt.Chart(price_df[price_df["sell_signal"]])
+                .mark_point(shape="triangle-down", color="red", size=80)
+                .encode(x="Date:T", y="Close:Q")
+            )
+            st.altair_chart(line + buys + sells, use_container_width=True)
+
+    with col2:
+        st.dataframe(pd.DataFrame([result["metrics"]]).T.rename(columns={0: "value"}))
+
+    st.markdown("**Chosen params per fold**")
+    st.dataframe(result["folds"], use_container_width=True)
+    st.markdown("**Typical params (median across folds)**")
+    st.json(result["typical"])
+
+
+auto_run_after_opt = bool(st.session_state.pop("run_after_optimization", False))
+run_requested = optimize_btn or run_btn or auto_run_after_opt
+
+if run_requested:
     tickers = normalize_tickers(primary, validation, benchmark)
     start = (dt.date.today() - dt.timedelta(days=365 * 12)).isoformat()
     end = dt.date.today().isoformat()
@@ -165,78 +228,39 @@ if should_run:
         except Exception as e:
             st.warning(f"{t}: {e}")
 
-    if primary in results:
-        res = results[primary]
-        st.subheader(f"Primary ticker: {primary}")
-
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            st.line_chart(res["oos_equity"], y_label="Equity", x_label="Date")
-
-            state_key_buy_hold = f"show_buy_hold_{primary}"
-            state_key_trades = f"show_trade_chart_{primary}"
-            st.session_state.setdefault(state_key_buy_hold, False)
-            st.session_state.setdefault(state_key_trades, False)
-
-            btn_col1, btn_col2 = st.columns(2)
-            with btn_col1:
-                if st.button(
-                    "Buy & hold comparison" + (" ✓" if st.session_state[state_key_buy_hold] else ""),
-                    key=f"btn_buy_hold_{primary}",
-                    type="secondary",
-                    use_container_width=True,
-                ):
-                    st.session_state[state_key_buy_hold] = not st.session_state[state_key_buy_hold]
-            with btn_col2:
-                if st.button(
-                    "Price + trade markers" + (" ✓" if st.session_state[state_key_trades] else ""),
-                    key=f"btn_trade_markers_{primary}",
-                    type="secondary",
-                    use_container_width=True,
-                ):
-                    st.session_state[state_key_trades] = not st.session_state[state_key_trades]
-
-            if st.session_state[state_key_buy_hold]:
-                compare_df = pd.DataFrame(
-                    {
-                        "Strategy equity": res["oos_equity"],
-                        "Buy & hold": res["buy_hold_equity"],
-                    }
-                )
-                st.line_chart(compare_df, y_label="Equity", x_label="Date")
-
-            if st.session_state[state_key_trades]:
-                price_df = res["oos_detail"].copy().reset_index().rename(columns={"index": "Date"})
-                line = alt.Chart(price_df).mark_line(color="#4e79a7").encode(x="Date:T", y="Close:Q")
-                buys = alt.Chart(price_df[price_df["buy_signal"]]).mark_point(shape="triangle-up", color="green", size=80).encode(x="Date:T", y="Close:Q")
-                sells = alt.Chart(price_df[price_df["sell_signal"]]).mark_point(shape="triangle-down", color="red", size=80).encode(x="Date:T", y="Close:Q")
-                st.altair_chart(line + buys + sells, use_container_width=True)
-        with col2:
-            st.dataframe(pd.DataFrame([res["metrics"]]).T.rename(columns={0: "value"}))
-
-        st.markdown("**Chosen params per fold**")
-        st.dataframe(res["folds"], use_container_width=True)
-        st.markdown("**Typical params (median across folds)**")
-        st.json(res["typical"])
-
-    st.subheader("Validation summary")
-    rows = []
-    for t, r in results.items():
-        row = {"Ticker": t, **r["metrics"]}
-        rows.append(row)
-    if rows:
-        val_df = pd.DataFrame(rows).set_index("Ticker")
-        st.dataframe(val_df, use_container_width=True)
-
-        agg = {
-            "Mean OOS CAGR": float(val_df["CAGR"].mean()),
-            "Median OOS CAGR": float(val_df["CAGR"].median()),
-            "Share positive alpha": float((val_df["Alpha (ann)"] > 0).mean()),
-            "Share Sharpe > benchmark": float((val_df["Sharpe"] > val_df["Benchmark Sharpe"]).mean()),
-        }
-        st.markdown("**Aggregate validation summary**")
-        st.json(agg)
-    else:
-        st.info("No ticker produced valid walk-forward output.")
+    st.session_state["last_run_payload"] = {
+        "primary": primary,
+        "results": results,
+    }
 else:
-    st.info("Configure settings in sidebar, then click **Run walk-forward**.")
+    payload = st.session_state.get("last_run_payload")
+    if payload:
+        primary = payload["primary"]
+        results = payload["results"]
+        st.caption("Showing most recent run. Click **Run walk-forward** to refresh with current settings.")
+    else:
+        st.info("Configure settings in sidebar, then click **Run walk-forward**.")
+        st.stop()
+
+if primary in results:
+    render_primary(primary, results[primary])
+
+st.subheader("Validation summary")
+rows = []
+for t, r in results.items():
+    row = {"Ticker": t, **r["metrics"]}
+    rows.append(row)
+if rows:
+    val_df = pd.DataFrame(rows).set_index("Ticker")
+    st.dataframe(val_df, use_container_width=True)
+
+    agg = {
+        "Mean OOS CAGR": float(val_df["CAGR"].mean()),
+        "Median OOS CAGR": float(val_df["CAGR"].median()),
+        "Share positive alpha": float((val_df["Alpha (ann)"] > 0).mean()),
+        "Share Sharpe > benchmark": float((val_df["Sharpe"] > val_df["Benchmark Sharpe"]).mean()),
+    }
+    st.markdown("**Aggregate validation summary**")
+    st.json(agg)
+else:
+    st.info("No ticker produced valid walk-forward output.")

@@ -115,12 +115,10 @@ def run_walk_forward_for_ticker(
 
     # turnover/time invested from full OOS run, reapplying fold params to each segment
     oos_detail = []
-    idx = first_test_start
     for fr in fold_results:
         seg = df.loc[fr.test_start:fr.test_end]
         bt = run_psar_strategy(seg, fr.step, fr.max_step, txn_cost_bps)
         oos_detail.append(bt)
-        idx += len(seg)
     oos_bt = pd.concat(oos_detail).sort_index()
     turnover = float(oos_bt["position_change"].mean() * 252)
     invested_pct = float(oos_bt["position"].mean())
