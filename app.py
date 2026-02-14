@@ -13,16 +13,26 @@ from src.simulator import buy_and_hold_equity, simulate_long_flat, summarize_run
 st.set_page_config(page_title="PSAR Strategy Simulator", layout="wide")
 st.title("PSAR Strategy Simulator")
 
+
+def parse_float_input(raw: str, label: str) -> float:
+    text = raw.strip().replace(",", "")
+    try:
+        return float(text)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be a valid number.") from exc
+
+
+
 with st.sidebar:
     st.header("Simulation Inputs")
     ticker = st.text_input("Ticker", value="AAPL").strip().upper()
     market_ticker = st.text_input("Market portfolio ticker", value="SPY").strip().upper()
 
-    step = st.number_input("PSAR start step", min_value=0.001, max_value=1.0, value=0.02, step=0.001, format="%.3f")
-    max_step = st.number_input("PSAR max step", min_value=0.01, max_value=1.5, value=0.2, step=0.01, format="%.2f")
+    step_text = st.text_input("PSAR start step", value="0.02", help="Paste any decimal value, e.g. 0.0187654321")
+    max_step_text = st.text_input("PSAR max step", value="0.2", help="Paste any decimal value, e.g. 0.215789")
 
-    cost_per_trade = st.number_input("Cost per trade ($)", min_value=0.0, value=1.0, step=0.5)
-    initial_cash = st.number_input("Starting account value ($)", min_value=100.0, value=10000.0, step=500.0)
+    cost_per_trade_text = st.text_input("Cost per trade ($)", value="1.0")
+    initial_cash_text = st.text_input("Starting account value ($)", value="10000.0")
 
     default_start = dt.date.today() - dt.timedelta(days=365 * 5)
     start_date = st.date_input("Begin date", value=default_start)
@@ -40,8 +50,26 @@ if simulate_btn:
     if start_date >= end_date:
         st.error("Begin date must be before end date.")
         st.stop()
+    try:
+        step = parse_float_input(step_text, "PSAR start step")
+        max_step = parse_float_input(max_step_text, "PSAR max step")
+        cost_per_trade = parse_float_input(cost_per_trade_text, "Cost per trade")
+        initial_cash = parse_float_input(initial_cash_text, "Starting account value")
+    except ValueError as exc:
+        st.error(str(exc))
+        st.stop()
+
+    if step <= 0 or max_step <= 0:
+        st.error("PSAR start step and max step must be greater than 0.")
+        st.stop()
     if step > max_step:
         st.error("PSAR start step must be less than or equal to max step.")
+        st.stop()
+    if cost_per_trade < 0:
+        st.error("Cost per trade cannot be negative.")
+        st.stop()
+    if initial_cash <= 0:
+        st.error("Starting account value must be greater than 0.")
         st.stop()
 
     with st.spinner("Downloading Yahoo Finance data..."):
@@ -64,18 +92,18 @@ if simulate_btn:
         st.error("No overlapping dates between ticker and market data.")
         st.stop()
 
-    asset["psar"] = parabolic_sar(asset["High"], asset["Low"], asset["Close"], step=float(step), max_step=float(max_step))
+    asset["psar"] = parabolic_sar(asset["High"], asset["Low"], asset["Close"], step=step, max_step=max_step)
     asset["signal"] = (asset["Close"] > asset["psar"]).astype(int)
 
     sim_df = simulate_long_flat(
         close=asset["Close"],
         signal=asset["signal"],
-        initial_cash=float(initial_cash),
-        cost_per_trade=float(cost_per_trade),
+        initial_cash=initial_cash,
+        cost_per_trade=cost_per_trade,
     )
 
-    buy_hold = buy_and_hold_equity(asset["Close"], initial_cash=float(initial_cash))
-    market_equity = buy_and_hold_equity(market["Close"], initial_cash=float(initial_cash))
+    buy_hold = buy_and_hold_equity(asset["Close"], initial_cash=initial_cash)
+    market_equity = buy_and_hold_equity(market["Close"], initial_cash=initial_cash)
     benchmark_returns = market["Close"].pct_change().fillna(0.0)
 
     metrics = summarize_run(sim_df, benchmark_returns)
