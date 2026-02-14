@@ -35,7 +35,7 @@ class MenuSettings:
 class OptimizationResult:
     settings: MenuSettings
     grid: list[tuple[float, float]]
-    summary: dict[str, float]
+    summary: dict[str, float | str | bool]
 
 
 def build_param_grid(step_min: float, step_max: float, step_n: int, max_min: float, max_max: float, max_n: int) -> list[tuple[float, float]]:
@@ -115,18 +115,24 @@ def run_walk_forward_for_ticker(
 
     # turnover/time invested from full OOS run, reapplying fold params to each segment
     oos_detail = []
-    idx = first_test_start
     for fr in fold_results:
         seg = df.loc[fr.test_start:fr.test_end]
         bt = run_psar_strategy(seg, fr.step, fr.max_step, txn_cost_bps)
         oos_detail.append(bt)
-        idx += len(seg)
     oos_bt = pd.concat(oos_detail).sort_index()
     turnover = float(oos_bt["position_change"].mean() * 252)
     invested_pct = float(oos_bt["position"].mean())
+    trade_count = int(((oos_bt["position"] == 1) & (oos_bt["position"].shift(1).fillna(0) == 0)).sum())
 
     bench_oos = benchmark_returns.reindex(oos_returns.index).fillna(0.0)
     metrics = summarize_performance(oos_returns, bench_oos, turnover=turnover, invested_pct=invested_pct)
+    metrics["Trades"] = trade_count
+
+    buy_hold_equity = (oos_bt["Close"] / float(oos_bt["Close"].iloc[0])) * float((1 + oos_returns.iloc[0]))
+    oos_bt = oos_bt.assign(
+        buy_signal=((oos_bt["position"] == 1) & (oos_bt["position"].shift(1).fillna(0) == 0)),
+        sell_signal=((oos_bt["position"] == 0) & (oos_bt["position"].shift(1).fillna(0) == 1)),
+    )
 
     fold_df = pd.DataFrame([vars(f) for f in fold_results])
     typical = {
@@ -140,6 +146,8 @@ def run_walk_forward_for_ticker(
         "folds": fold_df,
         "typical": typical,
         "metrics": metrics,
+        "buy_hold_equity": buy_hold_equity,
+        "oos_detail": oos_bt[["Close", "position", "buy_signal", "sell_signal"]],
     }
 
 
@@ -157,6 +165,8 @@ def optimize_menu_settings(
     price_map: dict[str, pd.DataFrame],
     benchmark_returns: pd.Series,
     tickers_to_run: list[str],
+    objective_mode: str = "cagr",
+    beta_penalty_enabled: bool = True,
     progress_cb: Callable[[int, int, str], None] | None = None,
 ) -> OptimizationResult:
     candidates = [
@@ -194,14 +204,34 @@ def optimize_menu_settings(
 
         if per_ticker:
             cagr_values = [v["metrics"]["CAGR"] for v in per_ticker.values()]
+            alpha_values = [v["metrics"]["Alpha (ann)"] for v in per_ticker.values()]
+            sharpe_values = [v["metrics"]["Sharpe"] for v in per_ticker.values()]
             beta_values = [v["metrics"]["Beta"] for v in per_ticker.values()]
-            mean_cagr = float(np.nanmean(cagr_values))
-            mean_beta = float(np.nanmean(beta_values))
-            score = mean_cagr - (0.15 * abs(mean_beta - 1.0))
 
-            summary = {
+            mean_cagr = float(np.nanmean(cagr_values))
+            mean_alpha = float(np.nanmean(alpha_values))
+            mean_sharpe = float(np.nanmean(sharpe_values))
+            mean_beta = float(np.nanmean(beta_values))
+
+            if objective_mode == "alpha":
+                objective_value = mean_alpha
+            elif objective_mode == "sharpe":
+                objective_value = mean_sharpe
+            else:
+                objective_value = mean_cagr
+
+            beta_penalty = (0.15 * abs(mean_beta - 1.0)) if beta_penalty_enabled else 0.0
+            score = objective_value - beta_penalty
+
+            summary: dict[str, float | str | bool] = {
                 "score": score,
+                "objective_mode": objective_mode,
+                "objective_value": objective_value,
+                "beta_penalty_enabled": beta_penalty_enabled,
+                "beta_penalty": beta_penalty,
                 "mean_cagr": mean_cagr,
+                "mean_alpha": mean_alpha,
+                "mean_sharpe": mean_sharpe,
                 "mean_beta": mean_beta,
             }
             if best is None or summary["score"] > best.summary["score"]:
