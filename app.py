@@ -2,201 +2,150 @@ from __future__ import annotations
 
 import datetime as dt
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
-from src.data import download_ohlcv, normalize_tickers
-from src.walkforward import build_param_grid, optimize_menu_settings, run_walk_forward_for_ticker
+from src.data import download_ohlcv
+from src.psar import parabolic_sar
+from src.simulator import buy_and_hold_equity, simulate_long_flat, summarize_run
 
-st.set_page_config(page_title="PSAR Walk-Forward Lab", layout="wide")
-st.title("Parabolic SAR Walk-Forward Optimization (Daily)")
+st.set_page_config(page_title="PSAR Strategy Simulator", layout="wide")
+st.title("PSAR Strategy Simulator")
 
-pending_widget_updates = st.session_state.pop("pending_widget_updates", None)
-if pending_widget_updates:
-    for key, value in pending_widget_updates.items():
-        st.session_state[key] = value
+
+def parse_float_input(raw: str, label: str) -> float:
+    text = raw.strip().replace(",", "")
+    try:
+        return float(text)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be a valid number.") from exc
+
+
 
 with st.sidebar:
-    st.header("Inputs")
-    st.session_state.setdefault("oos_years", 5)
-    st.session_state.setdefault("train_days", 504)
-    st.session_state.setdefault("test_days", 63)
-    st.session_state.setdefault("step_min", 0.01)
-    st.session_state.setdefault("step_max", 0.05)
-    st.session_state.setdefault("step_n", 7)
-    st.session_state.setdefault("max_min", 0.1)
-    st.session_state.setdefault("max_max", 0.3)
-    st.session_state.setdefault("max_n", 7)
-    st.session_state.setdefault("txn_cost_bps", 2.0)
-    st.session_state.setdefault("optimized_recently", False)
+    st.header("Simulation Inputs")
+    ticker = st.text_input("Ticker", value="AAPL").strip().upper()
+    market_ticker = st.text_input("Market portfolio ticker", value="SPY").strip().upper()
 
-    primary = st.text_input("Primary ticker", value="AAPL")
-    validation = st.text_input("Validation tickers (comma-separated)", value="MSFT,GOOGL,AMZN")
-    benchmark = st.text_input("Benchmark ticker", value="SPY")
+    start_step_text = st.text_input("PSAR start step", value="0.02", help="Initial PSAR acceleration factor (AF). Paste any decimal value.")
+    step_text = st.text_input("PSAR step", value="0.02", help="PSAR AF increment. Paste any decimal value.")
+    max_step_text = st.text_input("PSAR max step", value="0.2", help="PSAR AF ceiling. Paste any decimal value.")
 
-    oos_years = st.slider("Out-of-sample years", min_value=2, max_value=10, key="oos_years")
-    train_days = st.number_input("Rolling train window (trading days)", min_value=126, max_value=2520, step=21, key="train_days")
-    test_days = st.number_input("Forward test window (trading days)", min_value=21, max_value=504, step=21, key="test_days")
+    cost_per_trade_text = st.text_input("Cost per trade ($)", value="1.0")
+    initial_cash_text = st.text_input("Starting account value ($)", value="10000.0")
 
-    st.subheader("PSAR parameter grid")
-    step_min = st.number_input("AF step min", min_value=0.001, max_value=0.2, step=0.001, format="%.3f", key="step_min")
-    step_max = st.number_input("AF step max", min_value=0.001, max_value=0.3, step=0.001, format="%.3f", key="step_max")
-    step_n = st.slider("AF step grid size", min_value=2, max_value=20, key="step_n")
+    default_start = dt.date.today() - dt.timedelta(days=365 * 5)
+    start_date = st.date_input("Begin date", value=default_start)
+    end_date = st.date_input("End date", value=dt.date.today())
 
-    max_min = st.number_input("AF max min", min_value=0.01, max_value=0.5, step=0.01, format="%.2f", key="max_min")
-    max_max = st.number_input("AF max max", min_value=0.01, max_value=1.0, step=0.01, format="%.2f", key="max_max")
-    max_n = st.slider("AF max grid size", min_value=2, max_value=20, key="max_n")
-
-    txn_cost_bps = st.number_input("Transaction cost (bps per position change)", min_value=0.0, max_value=100.0, step=0.5, key="txn_cost_bps")
-    optimize_btn = st.button("Optimize menu settings")
-    run_btn = st.button("Run walk-forward", type="primary")
+    simulate_btn = st.button("Simulate", type="primary")
 
 
 @st.cache_data(show_spinner=False)
-def cached_download(tickers: tuple[str, ...], start: str, end: str, threads: bool = False):
-    return download_ohlcv(tickers, start=start, end=end, threads=threads)
+def cached_download(ticker_list: tuple[str, ...], start: str, end: str):
+    return download_ohlcv(ticker_list, start=start, end=end, threads=False)
 
 
-@st.cache_data(show_spinner=False)
-def cached_walk_forward(price_df: pd.DataFrame, benchmark_returns: pd.Series, train_days: int, test_days: int, oos_years: int, grid: tuple[tuple[float, float], ...], txn_cost_bps: float):
-    return run_walk_forward_for_ticker(
-        price_df=price_df,
-        benchmark_returns=benchmark_returns,
-        train_days=train_days,
-        test_days=test_days,
-        oos_years=oos_years,
-        grid=list(grid),
-        txn_cost_bps=txn_cost_bps,
-    )
-
-
-auto_run_after_opt = bool(st.session_state.pop("run_after_optimization", False))
-should_run = optimize_btn or run_btn or auto_run_after_opt
-
-if should_run:
-    tickers = normalize_tickers(primary, validation, benchmark)
-    start = (dt.date.today() - dt.timedelta(days=365 * 12)).isoformat()
-    end = dt.date.today().isoformat()
-
-    with st.spinner("Downloading OHLCV from Yahoo Finance..."):
-        data_map = cached_download(tuple(tickers), start, end, False)
-
-    missing = [t for t in tickers if t not in data_map]
-    if missing:
-        st.warning(f"No data returned for: {missing}")
-
-    if benchmark not in data_map:
-        st.error("Benchmark data not available. Please choose another benchmark ticker.")
+if simulate_btn:
+    if start_date >= end_date:
+        st.error("Begin date must be before end date.")
+        st.stop()
+    try:
+        start_step = parse_float_input(start_step_text, "PSAR start step")
+        step = parse_float_input(step_text, "PSAR step")
+        max_step = parse_float_input(max_step_text, "PSAR max step")
+        cost_per_trade = parse_float_input(cost_per_trade_text, "Cost per trade")
+        initial_cash = parse_float_input(initial_cash_text, "Starting account value")
+    except ValueError as exc:
+        st.error(str(exc))
         st.stop()
 
-    bench_ret = data_map[benchmark]["Close"].pct_change().fillna(0.0)
+    if start_step <= 0 or step <= 0 or max_step <= 0:
+        st.error("PSAR start step, step, and max step must all be greater than 0.")
+        st.stop()
+    if start_step > max_step:
+        st.error("PSAR start step must be less than or equal to max step.")
+        st.stop()
+    if step > max_step:
+        st.error("PSAR step must be less than or equal to max step.")
+        st.stop()
+    if cost_per_trade < 0:
+        st.error("Cost per trade cannot be negative.")
+        st.stop()
+    if initial_cash <= 0:
+        st.error("Starting account value must be greater than 0.")
+        st.stop()
 
-    tickers_to_run = [primary] + [t.strip().upper() for t in validation.split(",") if t.strip()]
-    tickers_to_run = [t for i, t in enumerate(tickers_to_run) if t and t not in tickers_to_run[:i]]
+    with st.spinner("Downloading Yahoo Finance data..."):
+        data_map = cached_download((ticker, market_ticker), start_date.isoformat(), end_date.isoformat())
 
-    if optimize_btn:
-        progress = st.progress(0.0, text="Starting optimization sweep...")
+    if ticker not in data_map:
+        st.error(f"No data found for ticker {ticker}.")
+        st.stop()
+    if market_ticker not in data_map:
+        st.error(f"No data found for market ticker {market_ticker}.")
+        st.stop()
 
-        def on_progress(done: int, total: int, msg: str):
-            progress.progress(done / total, text=msg)
+    asset = data_map[ticker].copy().dropna()
+    market = data_map[market_ticker].copy().dropna()
 
-        with st.spinner("Optimizing menu settings with coarse-to-focused PSAR search..."):
-            best = optimize_menu_settings(data_map, bench_ret, tickers_to_run, progress_cb=on_progress)
-        progress.progress(1.0, text="Optimization complete")
+    common_idx = asset.index.intersection(market.index)
+    asset = asset.loc[common_idx]
+    market = market.loc[common_idx]
+    if asset.empty:
+        st.error("No overlapping dates between ticker and market data.")
+        st.stop()
 
-        steps = [x[0] for x in best.grid]
-        max_steps = [x[1] for x in best.grid]
-        st.session_state["pending_widget_updates"] = {
-            "oos_years": best.settings.oos_years,
-            "train_days": best.settings.train_days,
-            "test_days": best.settings.test_days,
-            "txn_cost_bps": best.settings.txn_cost_bps,
-            "step_min": round(min(steps), 3),
-            "step_max": round(max(steps), 3),
-            "step_n": 11,
-            "max_min": round(min(max_steps), 2),
-            "max_max": round(max(max_steps), 2),
-            "max_n": 11,
-        }
+    asset["psar"] = parabolic_sar(asset["High"], asset["Low"], asset["Close"], start_step=start_step, step=step, max_step=max_step)
+    asset["signal"] = (asset["Close"] > asset["psar"]).astype(int)
 
-        st.session_state["optimized_recently"] = True
-        st.session_state["last_optimization_summary"] = best.summary
-        st.session_state["run_after_optimization"] = True
-        st.rerun()
+    sim_df = simulate_long_flat(
+        close=asset["Close"],
+        signal=asset["signal"],
+        initial_cash=initial_cash,
+        cost_per_trade=cost_per_trade,
+    )
 
-    if st.session_state.get("optimized_recently"):
-        summary = st.session_state.get("last_optimization_summary", {})
-        st.success(
-            "Optimized menu settings applied and used for this run. "
-            f"Mean CAGR={summary.get('mean_cagr', float('nan')):.2%}, "
-            f"Mean Beta={summary.get('mean_beta', float('nan')):.2f}."
-        )
-        st.session_state["optimized_recently"] = False
+    buy_hold = buy_and_hold_equity(asset["Close"], initial_cash=initial_cash)
+    market_equity = buy_and_hold_equity(market["Close"], initial_cash=initial_cash)
+    benchmark_returns = market["Close"].pct_change().fillna(0.0)
 
-    oos_years = st.session_state["oos_years"]
-    train_days = st.session_state["train_days"]
-    test_days = st.session_state["test_days"]
-    txn_cost_bps = st.session_state["txn_cost_bps"]
-    step_min = st.session_state["step_min"]
-    step_max = st.session_state["step_max"]
-    step_n = st.session_state["step_n"]
-    max_min = st.session_state["max_min"]
-    max_max = st.session_state["max_max"]
-    max_n = st.session_state["max_n"]
+    metrics = summarize_run(sim_df, benchmark_returns)
+    metrics_df = pd.DataFrame.from_dict(metrics, orient="index", columns=["Value"])
+    st.subheader("Backtest Results")
+    st.dataframe(metrics_df.style.format("{:.4f}"), use_container_width=True)
 
-    grid = build_param_grid(step_min, step_max, step_n, max_min, max_max, max_n)
-    st.caption(f"Grid size: {len(grid)} parameter pairs.")
+    chart1 = sim_df[["equity"]].rename(columns={"equity": "Strategy"})
+    st.subheader("Account value (strategy)")
+    st.line_chart(chart1)
 
-    results = {}
-    for t in tickers_to_run:
-        if t not in data_map:
-            continue
-        try:
-            results[t] = cached_walk_forward(
-                data_map[t],
-                bench_ret,
-                int(train_days),
-                int(test_days),
-                int(oos_years),
-                tuple(grid),
-                float(txn_cost_bps),
-            )
-        except Exception as e:
-            st.warning(f"{t}: {e}")
+    chart2 = pd.DataFrame({"Strategy": sim_df["equity"], "Buy & Hold": buy_hold}, index=sim_df.index)
+    st.subheader(f"Strategy vs Buy & Hold ({ticker})")
+    st.line_chart(chart2)
 
-    if primary in results:
-        res = results[primary]
-        st.subheader(f"Primary ticker: {primary}")
+    chart3 = pd.DataFrame({"Strategy": sim_df["equity"], f"Market ({market_ticker})": market_equity}, index=sim_df.index)
+    st.subheader("Strategy vs Market Portfolio")
+    st.line_chart(chart3)
 
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            st.line_chart(res["oos_equity"], y_label="Equity", x_label="Date")
-        with col2:
-            st.dataframe(pd.DataFrame([res["metrics"]]).T.rename(columns={0: "value"}))
+    st.subheader("Price chart with buy/sell markers")
+    base = pd.DataFrame({"Date": sim_df.index, "Close": sim_df["Close"]})
+    buys = sim_df.dropna(subset=["buy_price"]).copy()
+    buys["Date"] = buys.index
+    sells = sim_df.dropna(subset=["sell_price"]).copy()
+    sells["Date"] = sells.index
 
-        st.markdown("**Chosen params per fold**")
-        st.dataframe(res["folds"], use_container_width=True)
-        st.markdown("**Typical params (median across folds)**")
-        st.json(res["typical"])
-
-    st.subheader("Validation summary")
-    rows = []
-    for t, r in results.items():
-        row = {"Ticker": t, **r["metrics"]}
-        rows.append(row)
-    if rows:
-        val_df = pd.DataFrame(rows).set_index("Ticker")
-        st.dataframe(val_df, use_container_width=True)
-
-        agg = {
-            "Mean OOS CAGR": float(val_df["CAGR"].mean()),
-            "Median OOS CAGR": float(val_df["CAGR"].median()),
-            "Share positive alpha": float((val_df["Alpha (ann)"] > 0).mean()),
-            "Share Sharpe > benchmark": float((val_df["Sharpe"] > val_df["Benchmark Sharpe"]).mean()),
-        }
-        st.markdown("**Aggregate validation summary**")
-        st.json(agg)
-    else:
-        st.info("No ticker produced valid walk-forward output.")
+    line = alt.Chart(base).mark_line().encode(x="Date:T", y="Close:Q")
+    buy_marks = (
+        alt.Chart(buys)
+        .mark_point(shape="triangle-up", color="green", size=90)
+        .encode(x="Date:T", y="buy_price:Q", tooltip=["Date:T", "buy_price:Q"])
+    )
+    sell_marks = (
+        alt.Chart(sells)
+        .mark_point(shape="triangle-down", color="red", size=90)
+        .encode(x="Date:T", y="sell_price:Q", tooltip=["Date:T", "sell_price:Q"])
+    )
+    st.altair_chart((line + buy_marks + sell_marks).interactive(), use_container_width=True)
 else:
-    st.info("Configure settings in sidebar, then click **Run walk-forward**.")
+    st.info("Set inputs in the sidebar and click **Simulate**.")

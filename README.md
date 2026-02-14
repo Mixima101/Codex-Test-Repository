@@ -1,59 +1,32 @@
-# PSAR Walk-Forward Streamlit Lab
+# PSAR Strategy Simulator (Streamlit)
 
-Small local Python project for walk-forward optimization of a **Parabolic SAR** long/flat strategy using free Yahoo Finance daily OHLCV data via `yfinance` (`auto_adjust=True`).
+This project provides a runnable Streamlit app that backtests a **Parabolic SAR (PSAR)** long/flat strategy using Yahoo Finance daily OHLCV data from `yfinance`.
 
-## Features
+## What the app does
 
-- Streamlit UI for:
-  - Primary ticker
-  - Comma-separated validation tickers
-  - Benchmark ticker (default `SPY`)
-  - Out-of-sample horizon (default 5 years)
-  - Rolling train/test walk-forward windows
-  - PSAR `step` and `max` parameter ranges + grid sizes
-  - Transaction costs in bps on position changes
-- In-house PSAR implementation (no TA-Lib)
-- Next-day execution to avoid look-ahead bias
-- Walk-forward optimization per fold (optimize on train, lock and test on next segment)
-- Stitched out-of-sample series and metrics:
-  - CAGR, Sharpe, max drawdown, annualized volatility
-  - Annualized alpha/beta vs benchmark (OLS-style moments)
-  - Turnover and percent time invested
-- Same process across validation tickers + aggregate summary
-- Caching for price downloads and expensive computations
+- Left-side menu for all inputs:
+  - Ticker symbol
+  - Market portfolio ticker (for benchmark comparison)
+  - PSAR parameters (`start step`, `step`, `max step`)
+  - Cost per trade
+  - Start date and end date
+  - Starting account value
+- **Simulate** button to run the backtest.
+- Outputs strategy statistics.
+- Shows charts for:
+  - Strategy account value
+  - Strategy account value vs buy & hold
+  - Strategy account value vs market portfolio
+  - Price chart with buy/sell markers.
 
-## Project structure
-
-```text
-app.py
-src/
-  data.py
-  psar.py
-  backtest.py
-  metrics.py
-  walkforward.py
-tests/
-  test_psar_backtest.py
-requirements.txt
-```
-
-## Setup
+## Run locally
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-## Run
-
-```bash
 streamlit run app.py
-# or
-python -m streamlit run app.py
 ```
-
-Then open the local URL printed by Streamlit (usually `http://localhost:8501`).
 
 ## Tests
 
