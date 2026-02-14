@@ -143,6 +143,12 @@ def render_primary(primary_ticker: str, result: dict):
     st.dataframe(result["folds"], use_container_width=True)
     st.markdown("**Typical params (median across folds)**")
     st.json(result["typical"])
+    st.markdown("**Diagnostic Text**")
+    st.text_area(
+        "Copy this into ChatGPT/Codex for strategy diagnostics",
+        value=result["diagnostic_text"],
+        height=320,
+    )
 
 
 auto_run_after_opt = bool(st.session_state.pop("run_after_optimization", False))
