@@ -124,9 +124,17 @@ def run_walk_forward_for_ticker(
     oos_bt = pd.concat(oos_detail).sort_index()
     turnover = float(oos_bt["position_change"].mean() * 252)
     invested_pct = float(oos_bt["position"].mean())
+    trade_count = int(((oos_bt["position"] == 1) & (oos_bt["position"].shift(1).fillna(0) == 0)).sum())
 
     bench_oos = benchmark_returns.reindex(oos_returns.index).fillna(0.0)
     metrics = summarize_performance(oos_returns, bench_oos, turnover=turnover, invested_pct=invested_pct)
+    metrics["Trades"] = trade_count
+
+    buy_hold_equity = (oos_bt["Close"] / float(oos_bt["Close"].iloc[0])) * float((1 + oos_returns.iloc[0]))
+    oos_bt = oos_bt.assign(
+        buy_signal=((oos_bt["position"] == 1) & (oos_bt["position"].shift(1).fillna(0) == 0)),
+        sell_signal=((oos_bt["position"] == 0) & (oos_bt["position"].shift(1).fillna(0) == 1)),
+    )
 
     fold_df = pd.DataFrame([vars(f) for f in fold_results])
     typical = {
@@ -140,6 +148,8 @@ def run_walk_forward_for_ticker(
         "folds": fold_df,
         "typical": typical,
         "metrics": metrics,
+        "buy_hold_equity": buy_hold_equity,
+        "oos_detail": oos_bt[["Close", "position", "buy_signal", "sell_signal"]],
     }
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -171,6 +172,45 @@ if should_run:
         col1, col2 = st.columns([2, 1])
         with col1:
             st.line_chart(res["oos_equity"], y_label="Equity", x_label="Date")
+
+            state_key_buy_hold = f"show_buy_hold_{primary}"
+            state_key_trades = f"show_trade_chart_{primary}"
+            st.session_state.setdefault(state_key_buy_hold, False)
+            st.session_state.setdefault(state_key_trades, False)
+
+            btn_col1, btn_col2 = st.columns(2)
+            with btn_col1:
+                if st.button(
+                    "Buy & hold comparison" + (" ✓" if st.session_state[state_key_buy_hold] else ""),
+                    key=f"btn_buy_hold_{primary}",
+                    type="secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state[state_key_buy_hold] = not st.session_state[state_key_buy_hold]
+            with btn_col2:
+                if st.button(
+                    "Price + trade markers" + (" ✓" if st.session_state[state_key_trades] else ""),
+                    key=f"btn_trade_markers_{primary}",
+                    type="secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state[state_key_trades] = not st.session_state[state_key_trades]
+
+            if st.session_state[state_key_buy_hold]:
+                compare_df = pd.DataFrame(
+                    {
+                        "Strategy equity": res["oos_equity"],
+                        "Buy & hold": res["buy_hold_equity"],
+                    }
+                )
+                st.line_chart(compare_df, y_label="Equity", x_label="Date")
+
+            if st.session_state[state_key_trades]:
+                price_df = res["oos_detail"].copy().reset_index().rename(columns={"index": "Date"})
+                line = alt.Chart(price_df).mark_line(color="#4e79a7").encode(x="Date:T", y="Close:Q")
+                buys = alt.Chart(price_df[price_df["buy_signal"]]).mark_point(shape="triangle-up", color="green", size=80).encode(x="Date:T", y="Close:Q")
+                sells = alt.Chart(price_df[price_df["sell_signal"]]).mark_point(shape="triangle-down", color="red", size=80).encode(x="Date:T", y="Close:Q")
+                st.altair_chart(line + buys + sells, use_container_width=True)
         with col2:
             st.dataframe(pd.DataFrame([res["metrics"]]).T.rename(columns={0: "value"}))
 
