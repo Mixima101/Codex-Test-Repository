@@ -30,6 +30,8 @@ with st.sidebar:
     st.session_state.setdefault("max_n", 7)
     st.session_state.setdefault("txn_cost_bps", 2.0)
     st.session_state.setdefault("optimized_recently", False)
+    st.session_state.setdefault("optimization_target", "Optimize CAGR")
+    st.session_state.setdefault("beta_penalty_enabled", True)
 
     primary = st.text_input("Primary ticker", value="AAPL")
     validation = st.text_input("Validation tickers (comma-separated)", value="MSFT,GOOGL,AMZN")
@@ -49,6 +51,15 @@ with st.sidebar:
     max_n = st.slider("AF max grid size", min_value=2, max_value=20, key="max_n")
 
     txn_cost_bps = st.number_input("Transaction cost (bps per position change)", min_value=0.0, max_value=100.0, step=0.5, key="txn_cost_bps")
+
+    st.subheader("Optimization objective")
+    optimization_target = st.radio(
+        "Objective",
+        options=["Optimize CAGR", "Optimize Alpha", "Optimize Sharpe"],
+        key="optimization_target",
+    )
+    beta_penalty_enabled = st.checkbox("Beta Penalty", key="beta_penalty_enabled")
+
     optimize_btn = st.button("Optimize menu settings")
     run_btn = st.button("Run walk-forward", type="primary")
 
@@ -165,7 +176,19 @@ if run_requested:
             progress.progress(done / total, text=msg)
 
         with st.spinner("Optimizing menu settings with coarse-to-focused PSAR search..."):
-            best = optimize_menu_settings(data_map, bench_ret, tickers_to_run, progress_cb=on_progress)
+            objective_mode = {
+                "Optimize CAGR": "cagr",
+                "Optimize Alpha": "alpha",
+                "Optimize Sharpe": "sharpe",
+            }[optimization_target]
+            best = optimize_menu_settings(
+                data_map,
+                bench_ret,
+                tickers_to_run,
+                objective_mode=objective_mode,
+                beta_penalty_enabled=beta_penalty_enabled,
+                progress_cb=on_progress,
+            )
         progress.progress(1.0, text="Optimization complete")
 
         steps = [x[0] for x in best.grid]
@@ -192,8 +215,10 @@ if run_requested:
         summary = st.session_state.get("last_optimization_summary", {})
         st.success(
             "Optimized menu settings applied and used for this run. "
-            f"Mean CAGR={summary.get('mean_cagr', float('nan')):.2%}, "
-            f"Mean Beta={summary.get('mean_beta', float('nan')):.2f}."
+            f"Objective={summary.get('objective_mode', 'cagr')}, "
+            f"Value={summary.get('objective_value', float('nan')):.4f}, "
+            f"Mean Beta={summary.get('mean_beta', float('nan')):.2f}, "
+            f"Beta Penalty={summary.get('beta_penalty', 0.0):.4f}."
         )
         st.session_state["optimized_recently"] = False
 

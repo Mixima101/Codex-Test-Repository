@@ -35,7 +35,7 @@ class MenuSettings:
 class OptimizationResult:
     settings: MenuSettings
     grid: list[tuple[float, float]]
-    summary: dict[str, float]
+    summary: dict[str, float | str | bool]
 
 
 def build_param_grid(step_min: float, step_max: float, step_n: int, max_min: float, max_max: float, max_n: int) -> list[tuple[float, float]]:
@@ -165,6 +165,8 @@ def optimize_menu_settings(
     price_map: dict[str, pd.DataFrame],
     benchmark_returns: pd.Series,
     tickers_to_run: list[str],
+    objective_mode: str = "cagr",
+    beta_penalty_enabled: bool = True,
     progress_cb: Callable[[int, int, str], None] | None = None,
 ) -> OptimizationResult:
     candidates = [
@@ -202,14 +204,34 @@ def optimize_menu_settings(
 
         if per_ticker:
             cagr_values = [v["metrics"]["CAGR"] for v in per_ticker.values()]
+            alpha_values = [v["metrics"]["Alpha (ann)"] for v in per_ticker.values()]
+            sharpe_values = [v["metrics"]["Sharpe"] for v in per_ticker.values()]
             beta_values = [v["metrics"]["Beta"] for v in per_ticker.values()]
-            mean_cagr = float(np.nanmean(cagr_values))
-            mean_beta = float(np.nanmean(beta_values))
-            score = mean_cagr - (0.15 * abs(mean_beta - 1.0))
 
-            summary = {
+            mean_cagr = float(np.nanmean(cagr_values))
+            mean_alpha = float(np.nanmean(alpha_values))
+            mean_sharpe = float(np.nanmean(sharpe_values))
+            mean_beta = float(np.nanmean(beta_values))
+
+            if objective_mode == "alpha":
+                objective_value = mean_alpha
+            elif objective_mode == "sharpe":
+                objective_value = mean_sharpe
+            else:
+                objective_value = mean_cagr
+
+            beta_penalty = (0.15 * abs(mean_beta - 1.0)) if beta_penalty_enabled else 0.0
+            score = objective_value - beta_penalty
+
+            summary: dict[str, float | str | bool] = {
                 "score": score,
+                "objective_mode": objective_mode,
+                "objective_value": objective_value,
+                "beta_penalty_enabled": beta_penalty_enabled,
+                "beta_penalty": beta_penalty,
                 "mean_cagr": mean_cagr,
+                "mean_alpha": mean_alpha,
+                "mean_sharpe": mean_sharpe,
                 "mean_beta": mean_beta,
             }
             if best is None or summary["score"] > best.summary["score"]:
