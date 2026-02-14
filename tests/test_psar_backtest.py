@@ -32,3 +32,10 @@ def test_backtest_return_alignment():
     signal = (bt["Close"] > bt["psar"]).astype(int)
     expected = signal.shift(1).fillna(0).astype(int)
     assert bt["position"].equals(expected)
+
+
+def test_psar_start_step_changes_path():
+    df = synthetic_ohlc()
+    psar_a = parabolic_sar(df["High"], df["Low"], df["Close"], start_step=0.01, step=0.02, max_step=0.2)
+    psar_b = parabolic_sar(df["High"], df["Low"], df["Close"], start_step=0.05, step=0.02, max_step=0.2)
+    assert not psar_a.equals(psar_b)

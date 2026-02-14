@@ -28,8 +28,9 @@ with st.sidebar:
     ticker = st.text_input("Ticker", value="AAPL").strip().upper()
     market_ticker = st.text_input("Market portfolio ticker", value="SPY").strip().upper()
 
-    step_text = st.text_input("PSAR start step", value="0.02", help="Paste any decimal value, e.g. 0.0187654321")
-    max_step_text = st.text_input("PSAR max step", value="0.2", help="Paste any decimal value, e.g. 0.215789")
+    start_step_text = st.text_input("PSAR start step", value="0.02", help="Initial PSAR acceleration factor (AF). Paste any decimal value.")
+    step_text = st.text_input("PSAR step", value="0.02", help="PSAR AF increment. Paste any decimal value.")
+    max_step_text = st.text_input("PSAR max step", value="0.2", help="PSAR AF ceiling. Paste any decimal value.")
 
     cost_per_trade_text = st.text_input("Cost per trade ($)", value="1.0")
     initial_cash_text = st.text_input("Starting account value ($)", value="10000.0")
@@ -51,7 +52,8 @@ if simulate_btn:
         st.error("Begin date must be before end date.")
         st.stop()
     try:
-        step = parse_float_input(step_text, "PSAR start step")
+        start_step = parse_float_input(start_step_text, "PSAR start step")
+        step = parse_float_input(step_text, "PSAR step")
         max_step = parse_float_input(max_step_text, "PSAR max step")
         cost_per_trade = parse_float_input(cost_per_trade_text, "Cost per trade")
         initial_cash = parse_float_input(initial_cash_text, "Starting account value")
@@ -59,11 +61,14 @@ if simulate_btn:
         st.error(str(exc))
         st.stop()
 
-    if step <= 0 or max_step <= 0:
-        st.error("PSAR start step and max step must be greater than 0.")
+    if start_step <= 0 or step <= 0 or max_step <= 0:
+        st.error("PSAR start step, step, and max step must all be greater than 0.")
+        st.stop()
+    if start_step > max_step:
+        st.error("PSAR start step must be less than or equal to max step.")
         st.stop()
     if step > max_step:
-        st.error("PSAR start step must be less than or equal to max step.")
+        st.error("PSAR step must be less than or equal to max step.")
         st.stop()
     if cost_per_trade < 0:
         st.error("Cost per trade cannot be negative.")
@@ -92,7 +97,7 @@ if simulate_btn:
         st.error("No overlapping dates between ticker and market data.")
         st.stop()
 
-    asset["psar"] = parabolic_sar(asset["High"], asset["Low"], asset["Close"], step=step, max_step=max_step)
+    asset["psar"] = parabolic_sar(asset["High"], asset["Low"], asset["Close"], start_step=start_step, step=step, max_step=max_step)
     asset["signal"] = (asset["Close"] > asset["psar"]).astype(int)
 
     sim_df = simulate_long_flat(

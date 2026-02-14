@@ -7,7 +7,7 @@ This project provides a runnable Streamlit app that backtests a **Parabolic SAR 
 - Left-side menu for all inputs:
   - Ticker symbol
   - Market portfolio ticker (for benchmark comparison)
-  - PSAR parameters (`start step`, `max step`)
+  - PSAR parameters (`start step`, `step`, `max step`)
   - Cost per trade
   - Start date and end date
   - Starting account value
