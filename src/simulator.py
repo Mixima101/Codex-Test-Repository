@@ -11,6 +11,8 @@ def simulate_long_flat(
     signal: pd.Series,
     initial_cash: float,
     cost_per_trade: float,
+    hard_stop_pct: float | None = None,
+    trailing_stop_pct: float | None = None,
 ) -> pd.DataFrame:
     """Simulate a long/flat strategy with all-in/all-out allocation and fixed trade costs.
 
@@ -29,12 +31,37 @@ def simulate_long_flat(
     position = []
     buys = []
     sells = []
+    stop_levels = []
+    stop_exits = []
+
+    entry_price: float | None = None
+    highest_close: float | None = None
 
     prev_equity = float(initial_cash)
     for dt, price in close.items():
         buy_price = np.nan
         sell_price = np.nan
         desired = int(target_pos.loc[dt])
+
+        stop_level = np.nan
+        stop_exit = 0
+        if invested == 1:
+            if highest_close is None:
+                highest_close = float(price)
+            else:
+                highest_close = max(highest_close, float(price))
+
+            candidate_levels: list[float] = []
+            if hard_stop_pct is not None and entry_price is not None:
+                candidate_levels.append(entry_price * (1 - hard_stop_pct))
+            if trailing_stop_pct is not None:
+                candidate_levels.append(highest_close * (1 - trailing_stop_pct))
+
+            if candidate_levels:
+                stop_level = max(candidate_levels)
+                if price <= stop_level:
+                    desired = 0
+                    stop_exit = 1
 
         if desired != invested:
             if desired == 1:
@@ -43,6 +70,8 @@ def simulate_long_flat(
                     shares = cash / price
                     cash = 0.0
                     invested = 1
+                    entry_price = float(price)
+                    highest_close = float(price)
                     buy_price = float(price)
                     trade_cost = cost_per_trade
                 else:
@@ -53,6 +82,8 @@ def simulate_long_flat(
                 if cash > 0:
                     cash = max(0.0, cash - cost_per_trade)
                 invested = 0
+                entry_price = None
+                highest_close = None
                 sell_price = float(price)
                 trade_cost = cost_per_trade
         else:
@@ -67,6 +98,8 @@ def simulate_long_flat(
         position.append(invested)
         buys.append(buy_price)
         sells.append(sell_price)
+        stop_levels.append(stop_level)
+        stop_exits.append(stop_exit)
         prev_equity = eq
 
     out = pd.DataFrame(
@@ -79,6 +112,8 @@ def simulate_long_flat(
             "equity": equity,
             "buy_price": buys,
             "sell_price": sells,
+            "stop_level": stop_levels,
+            "stop_exit": stop_exits,
         },
         index=idx,
     )
