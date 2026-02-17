@@ -11,6 +11,34 @@ from src.simulator import buy_and_hold_equity, simulate_long_flat, summarize_run
 
 APP_NAME = "QuantumLeap Institutional Console"
 
+SIM_DEFAULTS = {
+    "sim_ticker": "AAPL",
+    "sim_market_ticker": "SPY",
+    "sim_start_date": dt.date.today() - dt.timedelta(days=365 * 5),
+    "sim_end_date": dt.date.today(),
+    "sim_start_step": "0.02",
+    "sim_step": "0.02",
+    "sim_max_step": "0.2",
+    "sim_cost_per_trade": "1.0",
+    "sim_initial_cash": "10000.0",
+    "sim_hard_enabled": False,
+    "sim_hard_pct": "8",
+    "sim_rolling_enabled": False,
+    "sim_rolling_pct": "12",
+}
+
+STRATEGY_DEFAULTS = {
+    "add_name": "",
+    "add_ticker": "AAPL",
+    "add_start_step": "0.02",
+    "add_step": "0.02",
+    "add_max_step": "0.2",
+    "add_hard_enabled": False,
+    "add_hard_pct": "8",
+    "add_rolling_enabled": False,
+    "add_rolling_pct": "12",
+}
+
 st.set_page_config(page_title=APP_NAME, layout="wide")
 st.markdown(
     f"""
@@ -60,6 +88,17 @@ def cached_download(ticker_list: tuple[str, ...], start: str, end: str):
 def ensure_state() -> None:
     if "strategies" not in st.session_state:
         st.session_state.strategies = []
+    for key, value in SIM_DEFAULTS.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+    for key, value in STRATEGY_DEFAULTS.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def reset_fields(defaults: dict[str, object]) -> None:
+    for key, value in defaults.items():
+        st.session_state[key] = value
 
 
 def build_signal_df(
@@ -126,27 +165,31 @@ def render_simulation():
     with st.form("sim_form"):
         col1, col2, col3 = st.columns(3)
         with col1:
-            ticker = st.text_input("Ticker", value="AAPL").strip().upper()
-            market_ticker = st.text_input("Market portfolio ticker", value="SPY").strip().upper()
-            start_date = st.date_input("Begin date", value=dt.date.today() - dt.timedelta(days=365 * 5))
-            end_date = st.date_input("End date", value=dt.date.today())
+            ticker = st.text_input("Ticker", key="sim_ticker").strip().upper()
+            market_ticker = st.text_input("Market portfolio ticker", key="sim_market_ticker").strip().upper()
+            start_date = st.date_input("Begin date", key="sim_start_date")
+            end_date = st.date_input("End date", key="sim_end_date")
         with col2:
-            start_step_text = st.text_input("PSAR start step", value="0.02")
-            step_text = st.text_input("PSAR step", value="0.02")
-            max_step_text = st.text_input("PSAR max step", value="0.2")
+            start_step_text = st.text_input("PSAR start step", key="sim_start_step")
+            step_text = st.text_input("PSAR step", key="sim_step")
+            max_step_text = st.text_input("PSAR max step", key="sim_max_step")
         with col3:
-            cost_per_trade_text = st.text_input("Cost per trade ($)", value="1.0")
-            initial_cash_text = st.text_input("Starting account value ($)", value="10000.0")
+            cost_per_trade_text = st.text_input("Cost per trade ($)", key="sim_cost_per_trade")
+            initial_cash_text = st.text_input("Starting account value ($)", key="sim_initial_cash")
 
         c1, c2 = st.columns(2)
         with c1:
-            hard_enabled = st.checkbox("Hard Stop")
-            hard_text = st.text_input("Hard stop %", value="8", help="Enter value anytime; checkbox controls activation.")
+            hard_enabled = st.checkbox("Hard Stop", key="sim_hard_enabled")
+            hard_text = st.text_input("Hard stop %", key="sim_hard_pct", help="Enter value anytime; checkbox controls activation.")
         with c2:
-            rolling_enabled = st.checkbox("Rolling Stop")
-            rolling_text = st.text_input("Rolling stop %", value="12", help="Enter value anytime; checkbox controls activation.")
+            rolling_enabled = st.checkbox("Rolling Stop", key="sim_rolling_enabled")
+            rolling_text = st.text_input("Rolling stop %", key="sim_rolling_pct", help="Enter value anytime; checkbox controls activation.")
 
         simulate_btn = st.form_submit_button("Run Simulation", type="primary")
+
+    if st.button("Clear fields", key="sim_clear_fields"):
+        reset_fields(SIM_DEFAULTS)
+        st.rerun()
 
     if not simulate_btn:
         st.info("Configure settings and run a simulation.")
@@ -223,19 +266,23 @@ def render_add_strategy():
     with st.form("strategy_form"):
         c1, c2, c3 = st.columns(3)
         with c1:
-            name = st.text_input("Strategy name", placeholder="AAPL Trend Core")
-            ticker = st.text_input("Ticker", value="AAPL").strip().upper()
+            name = st.text_input("Strategy name", placeholder="AAPL Trend Core", key="add_name")
+            ticker = st.text_input("Ticker", key="add_ticker").strip().upper()
         with c2:
-            start_step = st.text_input("PSAR start step", value="0.02")
-            step = st.text_input("PSAR step", value="0.02")
-            max_step = st.text_input("PSAR max step", value="0.2")
+            start_step = st.text_input("PSAR start step", key="add_start_step")
+            step = st.text_input("PSAR step", key="add_step")
+            max_step = st.text_input("PSAR max step", key="add_max_step")
         with c3:
-            hard_enabled = st.checkbox("Hard Stop")
-            hard_pct = st.text_input("Hard stop %", value="8", help="Enter value anytime; checkbox controls activation.")
-            rolling_enabled = st.checkbox("Rolling Stop")
-            rolling_pct = st.text_input("Rolling stop %", value="12", help="Enter value anytime; checkbox controls activation.")
+            hard_enabled = st.checkbox("Hard Stop", key="add_hard_enabled")
+            hard_pct = st.text_input("Hard stop %", key="add_hard_pct", help="Enter value anytime; checkbox controls activation.")
+            rolling_enabled = st.checkbox("Rolling Stop", key="add_rolling_enabled")
+            rolling_pct = st.text_input("Rolling stop %", key="add_rolling_pct", help="Enter value anytime; checkbox controls activation.")
 
         submitted = st.form_submit_button("Save", type="primary")
+
+    if st.button("Clear fields", key="add_clear_fields"):
+        reset_fields(STRATEGY_DEFAULTS)
+        st.rerun()
 
     if submitted:
         try:
