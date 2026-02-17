@@ -141,10 +141,10 @@ def render_simulation():
         c1, c2 = st.columns(2)
         with c1:
             hard_enabled = st.checkbox("Hard Stop")
-            hard_text = st.text_input("Hard stop %", value="8", disabled=not hard_enabled)
+            hard_text = st.text_input("Hard stop %", value="8", help="Enter value anytime; checkbox controls activation.")
         with c2:
             rolling_enabled = st.checkbox("Rolling Stop")
-            rolling_text = st.text_input("Rolling stop %", value="12", disabled=not rolling_enabled)
+            rolling_text = st.text_input("Rolling stop %", value="12", help="Enter value anytime; checkbox controls activation.")
 
         simulate_btn = st.form_submit_button("Run Simulation", type="primary")
 
@@ -231,9 +231,9 @@ def render_add_strategy():
             max_step = st.text_input("PSAR max step", value="0.2")
         with c3:
             hard_enabled = st.checkbox("Hard Stop")
-            hard_pct = st.text_input("Hard stop %", value="8", disabled=not hard_enabled)
+            hard_pct = st.text_input("Hard stop %", value="8", help="Enter value anytime; checkbox controls activation.")
             rolling_enabled = st.checkbox("Rolling Stop")
-            rolling_pct = st.text_input("Rolling stop %", value="12", disabled=not rolling_enabled)
+            rolling_pct = st.text_input("Rolling stop %", value="12", help="Enter value anytime; checkbox controls activation.")
 
         submitted = st.form_submit_button("Save", type="primary")
 
