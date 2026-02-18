@@ -8,6 +8,7 @@ import streamlit as st
 from src.data import download_ohlcv
 from src.psar import parabolic_sar
 from src.simulator import buy_and_hold_equity, simulate_long_flat, summarize_run
+from src.strategy_store import save_strategies, load_strategies
 
 APP_NAME = "QuantumLeap Institutional Console"
 
@@ -87,7 +88,7 @@ def cached_download(ticker_list: tuple[str, ...], start: str, end: str):
 
 def ensure_state() -> None:
     if "strategies" not in st.session_state:
-        st.session_state.strategies = []
+        st.session_state.strategies = load_strategies()
     for key, value in SIM_DEFAULTS.items():
         if key not in st.session_state:
             st.session_state[key] = value
@@ -305,6 +306,7 @@ def render_add_strategy():
                     "created_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
                 }
             )
+            save_strategies(st.session_state.strategies)
             st.success(f"Saved strategy: {strategy_name}")
         except ValueError as exc:
             st.error(str(exc))
@@ -343,7 +345,7 @@ def render_dashboard():
         st.info("No saved strategies yet. Use 'Add Strategy' to create one.")
         return
 
-    for strat in st.session_state.strategies:
+    for idx, strat in enumerate(st.session_state.strategies):
         signal, color, detail = strategy_decision(strat)
         left, right = st.columns([4, 1])
         with left:
@@ -362,6 +364,10 @@ def render_dashboard():
                 f"<div style='background:{color};padding:0.6rem;border-radius:0.4rem;color:white;text-align:center;font-weight:700'>{signal}</div>",
                 unsafe_allow_html=True,
             )
+            if st.button("Delete", key=f"delete_strategy_{idx}"):
+                st.session_state.strategies.pop(idx)
+                save_strategies(st.session_state.strategies)
+                st.rerun()
 
 
 ensure_state()
