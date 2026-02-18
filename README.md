@@ -56,3 +56,26 @@ You can also run the launcher directly:
 ```bash
 pytest -q
 ```
+
+## Download 2 years of daily yfinance data for a ticker list
+
+A helper script is included to download the requested ticker set and save output as text files.
+
+- Script: `scripts/download_yfinance_data.py`
+- Default output folder: `yfinance_2y_data`
+- Folder layout after running:
+  - `yfinance_2y_data/BKNG/BKNG_2y_daily.txt`
+  - `yfinance_2y_data/LULU/LULU_2y_daily.txt`
+  - ...one folder and `.txt` file per ticker
+
+PowerShell (from the repo/program folder):
+
+```powershell
+python .\scripts\download_yfinance_data.py
+```
+
+Optional: choose a different output folder:
+
+```powershell
+python .\scripts\download_yfinance_data.py --output-dir .\my_stock_data
+```
