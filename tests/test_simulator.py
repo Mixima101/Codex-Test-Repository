@@ -21,3 +21,15 @@ def test_simulate_long_flat_executes_next_day():
     assert out.loc[idx[1], "position"] == 0
     assert out.loc[idx[2], "position"] == 1
     assert out.loc[idx[2], "buy_price"] == 20.0
+
+
+def test_simulate_long_flat_hard_stop_exits_position():
+    idx = pd.date_range("2024-01-01", periods=5, freq="D")
+    close = pd.Series([10.0, 10.0, 10.0, 8.9, 8.8], index=idx)
+    signal = pd.Series([0, 1, 1, 1, 1], index=idx)
+
+    out = simulate_long_flat(close, signal, initial_cash=1000.0, cost_per_trade=0.0, hard_stop_pct=0.1)
+
+    assert out.loc[idx[2], "position"] == 1
+    assert out.loc[idx[3], "stop_exit"] == 1
+    assert out.loc[idx[3], "position"] == 0
