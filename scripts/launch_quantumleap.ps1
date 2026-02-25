@@ -8,7 +8,7 @@ if (-not (Test-Path $activateScript)) {
     $installer = Join-Path $PSScriptRoot 'install_quantumleap.ps1'
     if (Test-Path $installer) {
         Write-Host 'App is not installed yet. Running installer first...'
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $installer
+        & $installer
     }
 }
 

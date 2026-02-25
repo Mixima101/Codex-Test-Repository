@@ -27,7 +27,7 @@ python -m pip install -r requirements.txt
 $shortcutScript = Join-Path $PSScriptRoot 'create_desktop_shortcut.ps1'
 if (Test-Path $shortcutScript) {
     Write-Progress -Activity 'QuantumLeap Setup' -Status 'Creating desktop shortcut' -PercentComplete 90
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $shortcutScript
+    & $shortcutScript
 }
 
 Write-Progress -Activity 'QuantumLeap Setup' -Status 'Launching app' -PercentComplete 100 -Completed
