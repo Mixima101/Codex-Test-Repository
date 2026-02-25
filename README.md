@@ -12,6 +12,7 @@ This project provides a runnable Streamlit app that backtests a **Parabolic SAR 
   - Start date and end date
   - Starting account value
 - **Simulate** button to run the backtest.
+- **Data Storage** screen to download and persist ticker datasets locally for reuse.
 - Outputs strategy statistics.
 - Shows charts for:
   - Strategy account value

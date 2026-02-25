@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from src.data import download_ohlcv
+from src.data_store import delete_dataset, download_and_store_dataset, find_dataset, load_dataset_frame, load_datasets, save_datasets
 from src.psar import parabolic_sar
 from src.simulator import buy_and_hold_equity, simulate_long_flat, summarize_run
 from src.strategy_store import save_strategies, load_strategies
@@ -27,6 +28,13 @@ SIM_DEFAULTS = {
     "sim_rolling_enabled": False,
     "sim_rolling_pct": "12",
     "sim_strategy_name": "",
+}
+
+
+DATA_STORAGE_DEFAULTS = {
+    "data_ticker": "",
+    "data_start_date": dt.date.today() - dt.timedelta(days=2),
+    "data_end_date": dt.date.today(),
 }
 
 st.set_page_config(page_title=APP_NAME, layout="wide")
@@ -78,7 +86,12 @@ def cached_download(ticker_list: tuple[str, ...], start: str, end: str):
 def ensure_state() -> None:
     if "strategies" not in st.session_state:
         st.session_state.strategies = load_strategies()
+    if "datasets" not in st.session_state:
+        st.session_state.datasets = load_datasets()
     for key, value in SIM_DEFAULTS.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+    for key, value in DATA_STORAGE_DEFAULTS.items():
         if key not in st.session_state:
             st.session_state[key] = value
     if "current_section" not in st.session_state:
@@ -109,14 +122,28 @@ def build_signal_df(
     hard_stop_pct: float | None,
     trailing_stop_pct: float | None,
 ):
-    data_map = cached_download((ticker, market_ticker), start_date.isoformat(), end_date.isoformat())
-    if ticker not in data_map:
-        raise ValueError(f"No data found for ticker {ticker}.")
-    if market_ticker not in data_map:
-        raise ValueError(f"No data found for market ticker {market_ticker}.")
+    asset_dataset = find_dataset(st.session_state.datasets, ticker, start_date, end_date)
+    market_dataset = find_dataset(st.session_state.datasets, market_ticker, start_date, end_date)
 
-    asset = data_map[ticker].copy().dropna()
-    market = data_map[market_ticker].copy().dropna()
+    asset = load_dataset_frame(asset_dataset) if asset_dataset else None
+    market = load_dataset_frame(market_dataset) if market_dataset else None
+
+    download_tickers = []
+    if asset is None:
+        download_tickers.append(ticker)
+    if market is None:
+        download_tickers.append(market_ticker)
+
+    if download_tickers:
+        data_map = cached_download(tuple(download_tickers), start_date.isoformat(), end_date.isoformat())
+        if asset is None:
+            if ticker not in data_map:
+                raise ValueError(f"No data found for ticker {ticker}.")
+            asset = data_map[ticker].copy().dropna()
+        if market is None:
+            if market_ticker not in data_map:
+                raise ValueError(f"No data found for market ticker {market_ticker}.")
+            market = data_map[market_ticker].copy().dropna()
 
     common_idx = asset.index.intersection(market.index)
     asset = asset.loc[common_idx]
@@ -306,6 +333,78 @@ def render_simulation():
         st.success(f"Saved strategy: {strategy_name}")
 
 
+
+def render_data_storage():
+    st.title("Data Storage")
+    st.caption("Download and store ticker datasets for reuse in simulations.")
+
+    with st.form("data_storage_form"):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            ticker = st.text_input("Ticker", key="data_ticker").strip().upper()
+        with c2:
+            start_date = st.date_input("Start date", key="data_start_date")
+        with c3:
+            end_date = st.date_input("End date", key="data_end_date")
+        download_btn = st.form_submit_button("Download Dataset", type="primary")
+
+    if download_btn:
+        if not ticker:
+            st.error("Ticker is required.")
+        elif start_date >= end_date:
+            st.error("Start date must be before end date.")
+        else:
+            with st.spinner("Downloading dataset from Yahoo Finance..."):
+                try:
+                    dataset = download_and_store_dataset(ticker, start_date, end_date)
+                except ValueError as exc:
+                    st.error(str(exc))
+                else:
+                    st.session_state.datasets.append(dataset)
+                    save_datasets(st.session_state.datasets)
+                    st.success(f"Stored dataset: {dataset['ticker']} ({dataset['start_date']} to {dataset['end_date']})")
+                    st.rerun()
+
+    st.subheader("Stored datasets")
+    if not st.session_state.datasets:
+        st.info("No datasets stored yet.")
+        return
+
+    for idx, dataset in enumerate(st.session_state.datasets):
+        left, right = st.columns([5, 2])
+        with left:
+            st.markdown(f"**{dataset.get('ticker', 'UNKNOWN')}**")
+            st.caption(
+                f"{dataset.get('start_date', '?')} to {dataset.get('end_date', '?')} • Rows: {dataset.get('row_count', 0)} • Saved: {dataset.get('created_at', '')}"
+            )
+        with right:
+            sim_col, del_col = st.columns(2)
+            with sim_col:
+                if st.button("Simulate", key=f"dataset_simulate_{dataset.get('id', idx)}"):
+                    st.session_state.sim_ticker = dataset.get("ticker", "")
+                    st.session_state.sim_market_ticker = ""
+                    st.session_state.sim_start_date = dt.date.fromisoformat(dataset.get("start_date"))
+                    st.session_state.sim_end_date = dt.date.fromisoformat(dataset.get("end_date"))
+                    st.session_state.sim_start_step = ""
+                    st.session_state.sim_step = ""
+                    st.session_state.sim_max_step = ""
+                    st.session_state.sim_cost_per_trade = "1.0"
+                    st.session_state.sim_initial_cash = "10000.0"
+                    st.session_state.sim_hard_enabled = False
+                    st.session_state.sim_hard_pct = ""
+                    st.session_state.sim_rolling_enabled = False
+                    st.session_state.sim_rolling_pct = ""
+                    st.session_state.sim_strategy_name = ""
+                    st.session_state.sim_auto_run = False
+                    st.session_state.pending_section = "Simulation"
+                    st.rerun()
+            with del_col:
+                if st.button("Delete", key=f"dataset_delete_{dataset.get('id', idx)}"):
+                    delete_dataset(dataset)
+                    st.session_state.datasets.pop(idx)
+                    save_datasets(st.session_state.datasets)
+                    st.rerun()
+
 def strategy_decision(strategy: dict) -> tuple[str, str, str]:
     end = dt.date.today()
     start = end - dt.timedelta(days=365)
@@ -394,15 +493,15 @@ def render_dashboard():
 
 ensure_state()
 default_section = st.session_state.current_section
-if st.session_state.pending_section in {"Dashboard", "Simulation"}:
+if st.session_state.pending_section in {"Dashboard", "Simulation", "Data Storage"}:
     default_section = st.session_state.pending_section
 
 with st.sidebar:
     st.header("☰ Navigation")
     section = st.radio(
         "Go to",
-        ["Dashboard", "Simulation"],
-        index=0 if default_section == "Dashboard" else 1,
+        ["Dashboard", "Simulation", "Data Storage"],
+        index=["Dashboard", "Simulation", "Data Storage"].index(default_section),
         label_visibility="collapsed",
     )
 
@@ -412,5 +511,7 @@ if st.session_state.pending_section == section:
 
 if section == "Simulation":
     render_simulation()
+elif section == "Data Storage":
+    render_data_storage()
 else:
     render_dashboard()
