@@ -19,4 +19,4 @@ if (-not (Test-Path $activateScript)) {
 . $activateScript
 
 Write-Host 'Starting QuantumLeap Institutional Console...'
-python -m streamlit run app.py
+python -m streamlit run app.py --server.headless false --server.port 8501

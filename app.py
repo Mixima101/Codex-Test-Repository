@@ -184,9 +184,15 @@ def render_simulation():
     st.title("Simulation Lab")
     st.caption("Run PSAR backtests with optional hard-stop and rolling-stop controls.")
 
-    if st.button("← Back to Dashboard", key="sim_back_to_dashboard"):
-        st.session_state.pending_section = "Dashboard"
-        st.rerun()
+    nav_left, nav_right = st.columns(2)
+    with nav_left:
+        if st.button("← Back to Dashboard", key="sim_back_to_dashboard"):
+            st.session_state.pending_section = "Dashboard"
+            st.rerun()
+    with nav_right:
+        if st.button("Open Data Storage", key="sim_open_data_storage"):
+            st.session_state.pending_section = "Data Storage"
+            st.rerun()
 
     strategy_name = st.text_input("Strategy name (optional)", key="sim_strategy_name", placeholder="AAPL PSAR")
 
@@ -434,6 +440,10 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str]:
 
 def render_dashboard():
     st.title("Strategy Dashboard")
+    if st.button("Open Data Storage", key="dash_open_data_storage"):
+        st.session_state.pending_section = "Data Storage"
+        st.rerun()
+
     if not st.session_state.strategies:
         st.info("No saved strategies yet. Use 'Simulation' to create one.")
         return
@@ -497,7 +507,7 @@ if st.session_state.pending_section in {"Dashboard", "Simulation", "Data Storage
     default_section = st.session_state.pending_section
 
 with st.sidebar:
-    st.header("☰ Navigation")
+    st.header("☰ Navigation (Dashboard / Simulation / Data Storage)")
     section = st.radio(
         "Go to",
         ["Dashboard", "Simulation", "Data Storage"],
