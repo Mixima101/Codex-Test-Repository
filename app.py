@@ -81,8 +81,8 @@ def ensure_state() -> None:
     for key, value in SIM_DEFAULTS.items():
         if key not in st.session_state:
             st.session_state[key] = value
-    if "nav_section" not in st.session_state:
-        st.session_state.nav_section = "Dashboard"
+    if "current_section" not in st.session_state:
+        st.session_state.current_section = "Dashboard"
     if "sim_auto_run" not in st.session_state:
         st.session_state.sim_auto_run = False
     if "last_simulation_signature" not in st.session_state:
@@ -389,13 +389,22 @@ def render_dashboard():
 
 
 ensure_state()
+default_section = st.session_state.current_section
 if st.session_state.pending_section in {"Dashboard", "Simulation"}:
-    st.session_state.nav_section = st.session_state.pending_section
-    st.session_state.pending_section = None
+    default_section = st.session_state.pending_section
 
 with st.sidebar:
     st.header("☰ Navigation")
-    section = st.radio("Go to", ["Dashboard", "Simulation"], key="nav_section", label_visibility="collapsed")
+    section = st.radio(
+        "Go to",
+        ["Dashboard", "Simulation"],
+        index=0 if default_section == "Dashboard" else 1,
+        label_visibility="collapsed",
+    )
+
+st.session_state.current_section = section
+if st.session_state.pending_section == section:
+    st.session_state.pending_section = None
 
 if section == "Simulation":
     render_simulation()
