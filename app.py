@@ -26,18 +26,7 @@ SIM_DEFAULTS = {
     "sim_hard_pct": "8",
     "sim_rolling_enabled": False,
     "sim_rolling_pct": "12",
-}
-
-STRATEGY_DEFAULTS = {
-    "add_name": "",
-    "add_ticker": "AAPL",
-    "add_start_step": "0.02",
-    "add_step": "0.02",
-    "add_max_step": "0.2",
-    "add_hard_enabled": False,
-    "add_hard_pct": "8",
-    "add_rolling_enabled": False,
-    "add_rolling_pct": "12",
+    "sim_strategy_name": "",
 }
 
 st.set_page_config(page_title=APP_NAME, layout="wide")
@@ -92,9 +81,12 @@ def ensure_state() -> None:
     for key, value in SIM_DEFAULTS.items():
         if key not in st.session_state:
             st.session_state[key] = value
-    for key, value in STRATEGY_DEFAULTS.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+    if "nav_section" not in st.session_state:
+        st.session_state.nav_section = "Dashboard"
+    if "sim_auto_run" not in st.session_state:
+        st.session_state.sim_auto_run = False
+    if "last_simulation_signature" not in st.session_state:
+        st.session_state.last_simulation_signature = None
 
 
 def reset_fields(defaults: dict[str, object]) -> None:
@@ -163,6 +155,8 @@ def render_simulation():
     st.title("Simulation Lab")
     st.caption("Run PSAR backtests with optional hard-stop and rolling-stop controls.")
 
+    strategy_name = st.text_input("Strategy name (optional)", key="sim_strategy_name", placeholder="AAPL PSAR")
+
     with st.form("sim_form"):
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -188,11 +182,17 @@ def render_simulation():
 
         simulate_btn = st.form_submit_button("Run Simulation", type="primary")
 
+    add_strategy_btn = st.button("Add Strategy to Dashboard", key="sim_add_strategy")
+
     if st.button("Clear fields", key="sim_clear_fields"):
         reset_fields(SIM_DEFAULTS)
         st.rerun()
 
-    if not simulate_btn:
+    auto_run = bool(st.session_state.pop("sim_auto_run", False))
+    should_run = simulate_btn or auto_run
+    action_requested = should_run or add_strategy_btn
+
+    if not action_requested:
         st.info("Configure settings and run a simulation.")
         return
 
@@ -213,103 +213,91 @@ def render_simulation():
         st.error(str(exc))
         return
 
-    with st.spinner("Downloading Yahoo Finance data..."):
-        try:
-            sim_df, market = build_signal_df(
-                ticker,
-                market_ticker,
-                start_date,
-                end_date,
-                start_step,
-                step,
-                max_step,
-                initial_cash,
-                cost_per_trade,
-                hard_stop_pct,
-                rolling_stop_pct,
-            )
-        except ValueError as exc:
-            st.error(str(exc))
+    signature = {
+        "ticker": ticker,
+        "start_step": start_step,
+        "step": step,
+        "max_step": max_step,
+        "hard_stop_pct": hard_stop_pct,
+        "rolling_stop_pct": rolling_stop_pct,
+    }
+
+    if should_run:
+        with st.spinner("Downloading Yahoo Finance data..."):
+            try:
+                sim_df, market = build_signal_df(
+                    ticker,
+                    market_ticker,
+                    start_date,
+                    end_date,
+                    start_step,
+                    step,
+                    max_step,
+                    initial_cash,
+                    cost_per_trade,
+                    hard_stop_pct,
+                    rolling_stop_pct,
+                )
+            except ValueError as exc:
+                st.error(str(exc))
+                return
+
+        buy_hold = buy_and_hold_equity(sim_df["Close"], initial_cash=initial_cash)
+        market_equity = buy_and_hold_equity(market["Close"], initial_cash=initial_cash)
+        metrics = summarize_run(sim_df, market["Close"].pct_change().fillna(0.0))
+        st.subheader("Backtest Results")
+        st.dataframe(pd.DataFrame.from_dict(metrics, orient="index", columns=["Value"]).style.format("{:.4f}"), use_container_width=True)
+
+        st.subheader("Account value (strategy)")
+        st.line_chart(sim_df[["equity"]].rename(columns={"equity": "Strategy"}))
+
+        st.subheader(f"Strategy vs Buy & Hold ({ticker})")
+        st.line_chart(pd.DataFrame({"Strategy": sim_df["equity"], "Buy & Hold": buy_hold}, index=sim_df.index))
+
+        st.subheader("Strategy vs Market Portfolio")
+        st.line_chart(pd.DataFrame({"Strategy": sim_df["equity"], f"Market ({market_ticker})": market_equity}, index=sim_df.index))
+
+        st.subheader("Price chart with buy/sell markers")
+        base = pd.DataFrame({"Date": sim_df.index, "Close": sim_df["Close"]})
+        buys = sim_df.dropna(subset=["buy_price"]).copy()
+        buys["Date"] = buys.index
+        sells = sim_df.dropna(subset=["sell_price"]).copy()
+        sells["Date"] = sells.index
+
+        line = alt.Chart(base).mark_line().encode(x="Date:T", y="Close:Q")
+        buy_marks = alt.Chart(buys).mark_point(shape="triangle-up", color="green", size=90).encode(x="Date:T", y="buy_price:Q")
+        sell_marks = alt.Chart(sells).mark_point(shape="triangle-down", color="red", size=90).encode(x="Date:T", y="sell_price:Q")
+        st.altair_chart((line + buy_marks + sell_marks).interactive(), use_container_width=True)
+
+        st.session_state.last_simulation_signature = signature
+
+    if add_strategy_btn:
+        missing_fields = []
+        if not ticker:
+            missing_fields.append("Ticker")
+        if not strategy_name.strip():
+            strategy_name = f"{ticker} PSAR" if ticker else ""
+        if missing_fields:
+            st.error(f"Please fill in the missing fields: {', '.join(missing_fields)}")
+            return
+        if st.session_state.last_simulation_signature != signature:
+            st.error("Please run a simulation with these exact settings before adding the strategy.")
             return
 
-    buy_hold = buy_and_hold_equity(sim_df["Close"], initial_cash=initial_cash)
-    market_equity = buy_and_hold_equity(market["Close"], initial_cash=initial_cash)
-    metrics = summarize_run(sim_df, market["Close"].pct_change().fillna(0.0))
-    st.subheader("Backtest Results")
-    st.dataframe(pd.DataFrame.from_dict(metrics, orient="index", columns=["Value"]).style.format("{:.4f}"), use_container_width=True)
-
-    st.subheader("Account value (strategy)")
-    st.line_chart(sim_df[["equity"]].rename(columns={"equity": "Strategy"}))
-
-    st.subheader(f"Strategy vs Buy & Hold ({ticker})")
-    st.line_chart(pd.DataFrame({"Strategy": sim_df["equity"], "Buy & Hold": buy_hold}, index=sim_df.index))
-
-    st.subheader("Strategy vs Market Portfolio")
-    st.line_chart(pd.DataFrame({"Strategy": sim_df["equity"], f"Market ({market_ticker})": market_equity}, index=sim_df.index))
-
-    st.subheader("Price chart with buy/sell markers")
-    base = pd.DataFrame({"Date": sim_df.index, "Close": sim_df["Close"]})
-    buys = sim_df.dropna(subset=["buy_price"]).copy()
-    buys["Date"] = buys.index
-    sells = sim_df.dropna(subset=["sell_price"]).copy()
-    sells["Date"] = sells.index
-
-    line = alt.Chart(base).mark_line().encode(x="Date:T", y="Close:Q")
-    buy_marks = alt.Chart(buys).mark_point(shape="triangle-up", color="green", size=90).encode(x="Date:T", y="buy_price:Q")
-    sell_marks = alt.Chart(sells).mark_point(shape="triangle-down", color="red", size=90).encode(x="Date:T", y="sell_price:Q")
-    st.altair_chart((line + buy_marks + sell_marks).interactive(), use_container_width=True)
-
-
-def render_add_strategy():
-    st.title("Add Strategy")
-    st.caption("Create stock-specific PSAR strategies for live dashboard monitoring.")
-
-    with st.form("strategy_form"):
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            name = st.text_input("Strategy name", placeholder="AAPL Trend Core", key="add_name")
-            ticker = st.text_input("Ticker", key="add_ticker").strip().upper()
-        with c2:
-            start_step = st.text_input("PSAR start step", key="add_start_step")
-            step = st.text_input("PSAR step", key="add_step")
-            max_step = st.text_input("PSAR max step", key="add_max_step")
-        with c3:
-            hard_enabled = st.checkbox("Hard Stop", key="add_hard_enabled")
-            hard_pct = st.text_input("Hard stop %", key="add_hard_pct", help="Enter value anytime; checkbox controls activation.")
-            rolling_enabled = st.checkbox("Rolling Stop", key="add_rolling_enabled")
-            rolling_pct = st.text_input("Rolling stop %", key="add_rolling_pct", help="Enter value anytime; checkbox controls activation.")
-
-        submitted = st.form_submit_button("Save", type="primary")
-
-    if st.button("Clear fields", key="add_clear_fields"):
-        reset_fields(STRATEGY_DEFAULTS)
-        st.rerun()
-
-    if submitted:
-        try:
-            start_step_f = parse_float_input(start_step, "PSAR start step")
-            step_f = parse_float_input(step, "PSAR step")
-            max_step_f = parse_float_input(max_step, "PSAR max step")
-            validate_common(start_step_f, step_f, max_step_f, 0.0, 1.0)
-            hard_val = parse_optional_pct(hard_pct, "Hard stop %", hard_enabled)
-            rolling_val = parse_optional_pct(rolling_pct, "Rolling stop %", rolling_enabled)
-            strategy_name = name.strip() or f"{ticker} PSAR"
-            st.session_state.strategies.append(
-                {
-                    "name": strategy_name,
-                    "ticker": ticker,
-                    "start_step": start_step_f,
-                    "step": step_f,
-                    "max_step": max_step_f,
-                    "hard_stop_pct": hard_val,
-                    "rolling_stop_pct": rolling_val,
-                    "created_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                }
-            )
-            save_strategies(st.session_state.strategies)
-            st.success(f"Saved strategy: {strategy_name}")
-        except ValueError as exc:
-            st.error(str(exc))
+        st.session_state.strategies.append(
+            {
+                "name": strategy_name,
+                "ticker": ticker,
+                "start_step": start_step,
+                "step": step,
+                "max_step": max_step,
+                "hard_stop_pct": hard_stop_pct,
+                "rolling_stop_pct": rolling_stop_pct,
+                "created_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+            }
+        )
+        save_strategies(st.session_state.strategies)
+        st.success(f"Saved strategy: {strategy_name}")
 
 
 def strategy_decision(strategy: dict) -> tuple[str, str, str]:
@@ -342,7 +330,7 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str]:
 def render_dashboard():
     st.title("Strategy Dashboard")
     if not st.session_state.strategies:
-        st.info("No saved strategies yet. Use 'Add Strategy' to create one.")
+        st.info("No saved strategies yet. Use 'Simulation' to create one.")
         return
 
     for idx, strat in enumerate(st.session_state.strategies):
@@ -364,20 +352,46 @@ def render_dashboard():
                 f"<div style='background:{color};padding:0.6rem;border-radius:0.4rem;color:white;text-align:center;font-weight:700'>{signal}</div>",
                 unsafe_allow_html=True,
             )
-            if st.button("Delete", key=f"delete_strategy_{idx}"):
-                st.session_state.strategies.pop(idx)
-                save_strategies(st.session_state.strategies)
-                st.rerun()
+            sim_col, delete_col = st.columns(2)
+            with sim_col:
+                if st.button("Simulate", key=f"simulate_strategy_{idx}"):
+                    today = dt.date.today()
+                    st.session_state.sim_ticker = strat["ticker"]
+                    st.session_state.sim_market_ticker = "SPY"
+                    st.session_state.sim_start_date = today - dt.timedelta(days=365 * 2)
+                    st.session_state.sim_end_date = today
+                    st.session_state.sim_start_step = str(strat["start_step"])
+                    st.session_state.sim_step = str(strat["step"])
+                    st.session_state.sim_max_step = str(strat["max_step"])
+                    st.session_state.sim_cost_per_trade = "1.0"
+                    st.session_state.sim_initial_cash = "10000.0"
+                    st.session_state.sim_hard_enabled = strat["hard_stop_pct"] is not None
+                    st.session_state.sim_hard_pct = (
+                        str(strat["hard_stop_pct"] * 100) if strat["hard_stop_pct"] is not None else SIM_DEFAULTS["sim_hard_pct"]
+                    )
+                    st.session_state.sim_rolling_enabled = strat["rolling_stop_pct"] is not None
+                    st.session_state.sim_rolling_pct = (
+                        str(strat["rolling_stop_pct"] * 100)
+                        if strat["rolling_stop_pct"] is not None
+                        else SIM_DEFAULTS["sim_rolling_pct"]
+                    )
+                    st.session_state.sim_strategy_name = strat["name"]
+                    st.session_state.nav_section = "Simulation"
+                    st.session_state.sim_auto_run = True
+                    st.rerun()
+            with delete_col:
+                if st.button("Delete", key=f"delete_strategy_{idx}"):
+                    st.session_state.strategies.pop(idx)
+                    save_strategies(st.session_state.strategies)
+                    st.rerun()
 
 
 ensure_state()
 with st.sidebar:
     st.header("☰ Navigation")
-    section = st.radio("Go to", ["Dashboard", "Add Strategy", "Simulation"], label_visibility="collapsed")
+    section = st.radio("Go to", ["Dashboard", "Simulation"], key="nav_section", label_visibility="collapsed")
 
 if section == "Simulation":
     render_simulation()
-elif section == "Add Strategy":
-    render_add_strategy()
 else:
     render_dashboard()
