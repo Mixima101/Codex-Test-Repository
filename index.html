@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Strategy Simulator</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Trading Strategy Workspace</h1>
+      <nav>
+        <button id="navDashboard" class="nav-btn active">Dashboard</button>
+        <button id="navSimulation" class="nav-btn">Simulation</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="dashboardView" class="view active">
+        <h2>Dashboard Strategies</h2>
+        <p class="subtle">Manage saved strategies and launch simulations instantly.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Symbol</th>
+              <th>Short MA</th>
+              <th>Long MA</th>
+              <th>Threshold %</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="strategyTableBody"></tbody>
+        </table>
+      </section>
+
+      <section id="simulationView" class="view">
+        <h2>Simulation</h2>
+        <p class="subtle">Run backtests and save winning ideas directly to your dashboard.</p>
+        <div id="message" class="message" aria-live="polite"></div>
+
+        <form id="simulationForm" novalidate>
+          <div class="grid">
+            <label>Strategy Name
+              <input name="name" required />
+            </label>
+            <label>Ticker Symbol
+              <input name="symbol" required placeholder="AAPL" />
+            </label>
+            <label>Short MA Window
+              <input name="shortWindow" type="number" min="1" required />
+            </label>
+            <label>Long MA Window
+              <input name="longWindow" type="number" min="2" required />
+            </label>
+            <label>Signal Threshold (%)
+              <input name="threshold" type="number" min="0" step="0.1" required />
+            </label>
+            <label>Trade Cost ($)
+              <input name="tradeCost" type="number" min="0" step="0.01" required />
+            </label>
+            <label>Starting Amount ($)
+              <input name="startingAmount" type="number" min="100" step="1" required />
+            </label>
+            <label>Start Date
+              <input name="startDate" type="date" required />
+            </label>
+            <label>End Date
+              <input name="endDate" type="date" required />
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit" id="simulateButton">Simulate</button>
+            <button type="button" id="addStrategyButton">Add Strategy to Dashboard</button>
+          </div>
+        </form>
+
+        <section id="results" class="results hidden">
+          <h3>Simulation Results</h3>
+          <div id="resultStats" class="stats"></div>
+          <div class="chart-placeholder">📈 Charts would render here based on strategy performance.</div>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
