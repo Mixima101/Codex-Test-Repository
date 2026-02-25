@@ -1,5 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
+$shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'QuantumLeap Institutional Console.lnk'
+$shortcutScript = Join-Path $PSScriptRoot 'create_desktop_shortcut.ps1'
+if ((-not (Test-Path $shortcutPath)) -and (Test-Path $shortcutScript)) {
+    Write-Host 'Creating desktop shortcut...'
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $shortcutScript
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 

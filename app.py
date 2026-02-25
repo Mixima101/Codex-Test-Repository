@@ -87,6 +87,8 @@ def ensure_state() -> None:
         st.session_state.sim_auto_run = False
     if "last_simulation_signature" not in st.session_state:
         st.session_state.last_simulation_signature = None
+    if "pending_section" not in st.session_state:
+        st.session_state.pending_section = None
 
 
 def reset_fields(defaults: dict[str, object]) -> None:
@@ -376,7 +378,7 @@ def render_dashboard():
                         else SIM_DEFAULTS["sim_rolling_pct"]
                     )
                     st.session_state.sim_strategy_name = strat["name"]
-                    st.session_state.nav_section = "Simulation"
+                    st.session_state.pending_section = "Simulation"
                     st.session_state.sim_auto_run = True
                     st.rerun()
             with delete_col:
@@ -387,6 +389,10 @@ def render_dashboard():
 
 
 ensure_state()
+if st.session_state.pending_section in {"Dashboard", "Simulation"}:
+    st.session_state.nav_section = st.session_state.pending_section
+    st.session_state.pending_section = None
+
 with st.sidebar:
     st.header("☰ Navigation")
     section = st.radio("Go to", ["Dashboard", "Simulation"], key="nav_section", label_visibility="collapsed")
