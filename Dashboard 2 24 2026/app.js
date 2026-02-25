@@ -128,6 +128,22 @@ function validateForm(requireSimulationMatch = false) {
 
   const signature = JSON.stringify(values);
   if (requireSimulationMatch && signature !== lastSimulatedSignature) {
+    let priorValues = null;
+    if (lastSimulatedSignature) {
+      try {
+        priorValues = JSON.parse(lastSimulatedSignature);
+      } catch {
+        priorValues = null;
+      }
+    }
+
+    for (const [key, value] of Object.entries(values)) {
+      if (!priorValues || priorValues[key] !== value) {
+        const input = simulationForm.elements.namedItem(key);
+        if (input?.classList) input.classList.add('invalid');
+      }
+    }
+
     setMessage('Please run Simulate with the current field values before adding this strategy.', 'error');
     return null;
   }
