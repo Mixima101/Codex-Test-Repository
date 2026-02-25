@@ -157,6 +157,10 @@ def render_simulation():
     st.title("Simulation Lab")
     st.caption("Run PSAR backtests with optional hard-stop and rolling-stop controls.")
 
+    if st.button("← Back to Dashboard", key="sim_back_to_dashboard"):
+        st.session_state.pending_section = "Dashboard"
+        st.rerun()
+
     strategy_name = st.text_input("Strategy name (optional)", key="sim_strategy_name", placeholder="AAPL PSAR")
 
     with st.form("sim_form"):
