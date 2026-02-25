@@ -40,6 +40,8 @@ streamlit run app.py
 
 The launcher does not reinstall dependencies each time; it just starts the app (and runs installer only if `.venv` is missing).
 
+If a browser does not auto-open, use the **Local URL** printed in the PowerShell window (for example `http://localhost:8501` or another shown port).
+
 ## Tests
 
 ```bash

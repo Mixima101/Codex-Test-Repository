@@ -32,4 +32,4 @@ if (Test-Path $shortcutScript) {
 
 Write-Progress -Activity 'QuantumLeap Setup' -Status 'Launching app' -PercentComplete 100 -Completed
 Write-Host 'Setup complete. Launching QuantumLeap Institutional Console...'
-python -m streamlit run app.py --server.headless false --server.port 8501
+python -m streamlit run app.py --server.headless false

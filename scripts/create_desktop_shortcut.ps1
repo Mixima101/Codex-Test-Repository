@@ -19,7 +19,7 @@ $wsh = New-Object -ComObject WScript.Shell
 $shortcut = $wsh.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $powershellExe
 $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$launcherScript`""
-$shortcut.WorkingDirectory = $repoRoot
+$shortcut.WorkingDirectory = $env:USERPROFILE
 $shortcut.IconLocation = "$env:SystemRoot\System32\SHELL32.dll,220"
 $shortcut.Description = 'Launch QuantumLeap Institutional Console'
 $shortcut.Save()
