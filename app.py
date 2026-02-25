@@ -184,15 +184,9 @@ def render_simulation():
     st.title("Simulation Lab")
     st.caption("Run PSAR backtests with optional hard-stop and rolling-stop controls.")
 
-    nav_left, nav_right = st.columns(2)
-    with nav_left:
-        if st.button("← Back to Dashboard", key="sim_back_to_dashboard"):
-            st.session_state.pending_section = "Dashboard"
-            st.rerun()
-    with nav_right:
-        if st.button("Open Data Storage", key="sim_open_data_storage"):
-            st.session_state.pending_section = "Data Storage"
-            st.rerun()
+    if st.button("← Back to Dashboard", key="sim_back_to_dashboard"):
+        st.session_state.pending_section = "Dashboard"
+        st.rerun()
 
     strategy_name = st.text_input("Strategy name (optional)", key="sim_strategy_name", placeholder="AAPL PSAR")
 
@@ -411,7 +405,7 @@ def render_data_storage():
                     save_datasets(st.session_state.datasets)
                     st.rerun()
 
-def strategy_decision(strategy: dict) -> tuple[str, str, str]:
+def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
     end = dt.date.today()
     start = end - dt.timedelta(days=365)
     try:
@@ -429,27 +423,59 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str]:
             trailing_stop_pct=strategy["rolling_stop_pct"],
         )
     except Exception:
-        return "No Data", "gray", "Unable to load quote history"
+        return "No Data", "gray", "Unable to load quote history", float("-inf")
 
     latest = int(sim_df["position"].iloc[-1])
     label = "BUY" if latest == 1 else "SELL"
     color = "#0A7D34" if latest == 1 else "#BA1A1A"
     detail = f"Last close: ${sim_df['Close'].iloc[-1]:.2f}"
-    return label, color, detail
+    sim_return = float(sim_df["equity"].iloc[-1] / sim_df["equity"].iloc[0] - 1.0)
+    return label, color, detail, sim_return
 
 
 def render_dashboard():
     st.title("Strategy Dashboard")
-    if st.button("Open Data Storage", key="dash_open_data_storage"):
-        st.session_state.pending_section = "Data Storage"
-        st.rerun()
+
+    sort_buy_first = st.checkbox("Sort BUY signals first", key="dash_sort_buy_first")
+    sort_return_desc = st.checkbox("Sort by simulation return (high → low)", key="dash_sort_return_desc")
 
     if not st.session_state.strategies:
         st.info("No saved strategies yet. Use 'Simulation' to create one.")
         return
 
-    for idx, strat in enumerate(st.session_state.strategies):
-        signal, color, detail = strategy_decision(strat)
+    strategy_rows: list[dict] = []
+    for original_idx, strat in enumerate(st.session_state.strategies):
+        signal, color, detail, sim_return = strategy_decision(strat)
+        strategy_rows.append(
+            {
+                "original_idx": original_idx,
+                "strategy": strat,
+                "signal": signal,
+                "color": color,
+                "detail": detail,
+                "sim_return": sim_return,
+            }
+        )
+
+    if sort_buy_first or sort_return_desc:
+        def row_key(row: dict):
+            buy_rank = 0 if row["signal"] == "BUY" else 1
+            return_rank = -row["sim_return"] if row["sim_return"] != float("-inf") else float("inf")
+            if sort_buy_first and sort_return_desc:
+                return (buy_rank, return_rank, row["original_idx"])
+            if sort_buy_first:
+                return (buy_rank, row["original_idx"])
+            return (return_rank, row["original_idx"])
+
+        strategy_rows = sorted(strategy_rows, key=row_key)
+
+    for row in strategy_rows:
+        idx = row["original_idx"]
+        strat = row["strategy"]
+        signal = row["signal"]
+        color = row["color"]
+        detail = row["detail"]
+
         left, right = st.columns([4, 1])
         with left:
             stops = []
