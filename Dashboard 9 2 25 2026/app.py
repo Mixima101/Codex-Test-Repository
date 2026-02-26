@@ -21,6 +21,7 @@ SIM_DEFAULTS = {
     "sim_start_step": "0.02",
     "sim_step": "0.02",
     "sim_max_step": "0.2",
+    "sim_use_psar": True,
     "sim_cost_per_trade": "1.0",
     "sim_initial_cash": "10000.0",
     "sim_hard_enabled": False,
@@ -102,6 +103,12 @@ def ensure_state() -> None:
         st.session_state.last_simulation_signature = None
     if "pending_section" not in st.session_state:
         st.session_state.pending_section = None
+    if "dash_tag_query" not in st.session_state:
+        st.session_state.dash_tag_query = ""
+    if "dash_active_tag" not in st.session_state:
+        st.session_state.dash_active_tag = ""
+    if "notes_strategy_idx" not in st.session_state:
+        st.session_state.notes_strategy_idx = None
 
 
 def reset_fields(defaults: dict[str, object]) -> None:
@@ -121,6 +128,7 @@ def build_signal_df(
     cost_per_trade: float,
     hard_stop_pct: float | None,
     trailing_stop_pct: float | None,
+    use_psar: bool = True,
 ):
     asset_dataset = find_dataset(st.session_state.datasets, ticker, start_date, end_date)
     market_dataset = find_dataset(st.session_state.datasets, market_ticker, start_date, end_date)
@@ -151,10 +159,14 @@ def build_signal_df(
     if asset.empty:
         raise ValueError("No overlapping dates between ticker and market data.")
 
-    asset["psar"] = parabolic_sar(
-        asset["High"], asset["Low"], asset["Close"], start_step=start_step, step=step, max_step=max_step
-    )
-    asset["signal"] = (asset["Close"] > asset["psar"]).astype(int)
+    if use_psar:
+        asset["psar"] = parabolic_sar(
+            asset["High"], asset["Low"], asset["Close"], start_step=start_step, step=step, max_step=max_step
+        )
+        asset["signal"] = (asset["Close"] > asset["psar"]).astype(int)
+    else:
+        asset["psar"] = pd.NA
+        asset["signal"] = 1
 
     sim_df = simulate_long_flat(
         close=asset["Close"],
@@ -180,6 +192,13 @@ def validate_common(start_step: float, step: float, max_step: float, cost_per_tr
         raise ValueError("Starting account value must be greater than 0.")
 
 
+def validate_cost_and_cash(cost_per_trade: float, initial_cash: float):
+    if cost_per_trade < 0:
+        raise ValueError("Cost per trade cannot be negative.")
+    if initial_cash <= 0:
+        raise ValueError("Starting account value must be greater than 0.")
+
+
 def render_simulation():
     st.title("Simulation Lab")
     st.caption("Run PSAR backtests with optional hard-stop and rolling-stop controls.")
@@ -198,6 +217,7 @@ def render_simulation():
             start_date = st.date_input("Begin date", key="sim_start_date")
             end_date = st.date_input("End date", key="sim_end_date")
         with col2:
+            use_psar = st.checkbox("Use PSAR entries/exits", key="sim_use_psar")
             start_step_text = st.text_input("PSAR start step", key="sim_start_step")
             step_text = st.text_input("PSAR step", key="sim_step")
             max_step_text = st.text_input("PSAR max step", key="sim_max_step")
@@ -234,14 +254,21 @@ def render_simulation():
         return
 
     try:
-        start_step = parse_float_input(start_step_text, "PSAR start step")
-        step = parse_float_input(step_text, "PSAR step")
-        max_step = parse_float_input(max_step_text, "PSAR max step")
         cost_per_trade = parse_float_input(cost_per_trade_text, "Cost per trade")
         initial_cash = parse_float_input(initial_cash_text, "Starting account value")
         hard_stop_pct = parse_optional_pct(hard_text, "Hard stop %", hard_enabled)
         rolling_stop_pct = parse_optional_pct(rolling_text, "Rolling stop %", rolling_enabled)
-        validate_common(start_step, step, max_step, cost_per_trade, initial_cash)
+        validate_cost_and_cash(cost_per_trade, initial_cash)
+
+        if use_psar:
+            start_step = parse_float_input(start_step_text, "PSAR start step")
+            step = parse_float_input(step_text, "PSAR step")
+            max_step = parse_float_input(max_step_text, "PSAR max step")
+            validate_common(start_step, step, max_step, cost_per_trade, initial_cash)
+        else:
+            start_step = float(SIM_DEFAULTS["sim_start_step"])
+            step = float(SIM_DEFAULTS["sim_step"])
+            max_step = float(SIM_DEFAULTS["sim_max_step"])
     except ValueError as exc:
         st.error(str(exc))
         return
@@ -253,6 +280,7 @@ def render_simulation():
         "max_step": max_step,
         "hard_stop_pct": hard_stop_pct,
         "rolling_stop_pct": rolling_stop_pct,
+        "use_psar": use_psar,
     }
 
     if should_run:
@@ -270,6 +298,7 @@ def render_simulation():
                     cost_per_trade,
                     hard_stop_pct,
                     rolling_stop_pct,
+                    use_psar=use_psar,
                 )
             except ValueError as exc:
                 st.error(str(exc))
@@ -309,7 +338,7 @@ def render_simulation():
         if not ticker:
             missing_fields.append("Ticker")
         if not strategy_name.strip():
-            strategy_name = f"{ticker} PSAR" if ticker else ""
+            strategy_name = f"{ticker} PSAR" if use_psar and ticker else (f"{ticker} Stops" if ticker else "")
         if missing_fields:
             st.error(f"Please fill in the missing fields: {', '.join(missing_fields)}")
             return
@@ -326,6 +355,7 @@ def render_simulation():
                 "max_step": max_step,
                 "hard_stop_pct": hard_stop_pct,
                 "rolling_stop_pct": rolling_stop_pct,
+                "use_psar": use_psar,
                 "created_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
         )
@@ -421,6 +451,7 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
             cost_per_trade=0.0,
             hard_stop_pct=strategy["hard_stop_pct"],
             trailing_stop_pct=strategy["rolling_stop_pct"],
+            use_psar=strategy.get("use_psar", True),
         )
     except Exception:
         return "No Data", "gray", "Unable to load quote history", float("-inf")
@@ -433,11 +464,86 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
     return label, color, detail, sim_return
 
 
+def normalize_strategy_fields(strategy: dict) -> dict:
+    strategy.setdefault("notes", "")
+    strategy.setdefault("use_psar", True)
+    tags = strategy.get("tags", [])
+    if not isinstance(tags, list):
+        tags = []
+    strategy["tags"] = [str(tag).strip() for tag in tags if str(tag).strip()]
+    return strategy
+
+
+def parse_tags(raw_tags: str) -> list[str]:
+    seen: set[str] = set()
+    tags: list[str] = []
+    for chunk in raw_tags.split(","):
+        tag = chunk.strip()
+        if not tag:
+            continue
+        lowered = tag.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        tags.append(tag)
+    return tags
+
+
+def render_strategy_notes():
+    st.title("Strategy Notes")
+
+    idx = st.session_state.get("notes_strategy_idx")
+    if idx is None or idx < 0 or idx >= len(st.session_state.strategies):
+        st.info("Choose a strategy from the Dashboard to edit notes.")
+        if st.button("← Back to Dashboard", key="notes_back_no_selection"):
+            st.session_state.pending_section = "Dashboard"
+            st.rerun()
+        return
+
+    strategy = normalize_strategy_fields(st.session_state.strategies[idx])
+    st.subheader(f"{strategy.get('name', 'Unnamed Strategy')} ({strategy.get('ticker', 'N/A')})")
+
+    notes_value = st.text_area("Notes", value=strategy.get("notes", ""), height=220, key=f"notes_text_{idx}")
+    tags_value = st.text_input(
+        "Tags",
+        value=", ".join(strategy.get("tags", [])),
+        help="Comma-separated tags (example: momentum, long-term, tech)",
+        key=f"notes_tags_{idx}",
+    )
+
+    save_col, back_col = st.columns(2)
+    with save_col:
+        if st.button("Save Notes", key=f"save_notes_{idx}", type="primary"):
+            st.session_state.strategies[idx]["notes"] = notes_value
+            st.session_state.strategies[idx]["tags"] = parse_tags(tags_value)
+            save_strategies(st.session_state.strategies)
+            st.success("Strategy notes saved.")
+    with back_col:
+        if st.button("← Back to Dashboard", key=f"notes_back_{idx}"):
+            st.session_state.pending_section = "Dashboard"
+            st.rerun()
+
+
 def render_dashboard():
     st.title("Strategy Dashboard")
 
     sort_buy_first = st.checkbox("Sort BUY signals first", key="dash_sort_buy_first")
     sort_return_desc = st.checkbox("Sort by simulation return (high → low)", key="dash_sort_return_desc")
+
+    search_col, clear_col = st.columns([4, 1])
+    with search_col:
+        st.text_input("Tag search", key="dash_tag_query", placeholder="Enter a tag and click Search")
+    with clear_col:
+        st.write("")
+        st.write("")
+        if st.button("Search", key="dash_tag_search"):
+            st.session_state.dash_active_tag = st.session_state.dash_tag_query.strip().lower()
+
+    if st.session_state.dash_active_tag:
+        st.caption(f"Active tag sort: {st.session_state.dash_active_tag}")
+        if st.button("Clear tag sort", key="dash_clear_tag_sort"):
+            st.session_state.dash_active_tag = ""
+            st.rerun()
 
     if not st.session_state.strategies:
         st.info("No saved strategies yet. Use 'Simulation' to create one.")
@@ -445,6 +551,7 @@ def render_dashboard():
 
     strategy_rows: list[dict] = []
     for original_idx, strat in enumerate(st.session_state.strategies):
+        strat = normalize_strategy_fields(strat)
         signal, color, detail, sim_return = strategy_decision(strat)
         strategy_rows.append(
             {
@@ -457,15 +564,23 @@ def render_dashboard():
             }
         )
 
-    if sort_buy_first or sort_return_desc:
+    if sort_buy_first or sort_return_desc or st.session_state.dash_active_tag:
         def row_key(row: dict):
+            active_tag = st.session_state.dash_active_tag
+            tags = [tag.lower() for tag in row["strategy"].get("tags", [])]
+            tag_rank = 0 if active_tag and active_tag in tags else 1
             buy_rank = 0 if row["signal"] == "BUY" else 1
             return_rank = -row["sim_return"] if row["sim_return"] != float("-inf") else float("inf")
-            if sort_buy_first and sort_return_desc:
-                return (buy_rank, return_rank, row["original_idx"])
+
+            key_parts = []
+            if active_tag:
+                key_parts.append(tag_rank)
             if sort_buy_first:
-                return (buy_rank, row["original_idx"])
-            return (return_rank, row["original_idx"])
+                key_parts.append(buy_rank)
+            if sort_return_desc:
+                key_parts.append(return_rank)
+            key_parts.append(row["original_idx"])
+            return tuple(key_parts)
 
         strategy_rows = sorted(strategy_rows, key=row_key)
 
@@ -485,15 +600,19 @@ def render_dashboard():
                 stops.append(f"Rolling {strat['rolling_stop_pct'] * 100:.1f}%")
             stop_text = " | ".join(stops) if stops else "No stops"
             st.markdown(f"**{strat['name']}** ({strat['ticker']})  ")
-            st.caption(
-                f"PSAR: start={strat['start_step']}, step={strat['step']}, max={strat['max_step']} • {stop_text} • {detail}"
+            tags_text = ", ".join(strat.get("tags", [])) if strat.get("tags") else "No tags"
+            mode_text = (
+                f"PSAR: start={strat['start_step']}, step={strat['step']}, max={strat['max_step']}"
+                if strat.get("use_psar", True)
+                else "Mode: Buy & Hold / Stops-only"
             )
+            st.caption(f"{mode_text} • {stop_text} • {detail} • Tags: {tags_text}")
         with right:
             st.markdown(
                 f"<div style='background:{color};padding:0.6rem;border-radius:0.4rem;color:white;text-align:center;font-weight:700'>{signal}</div>",
                 unsafe_allow_html=True,
             )
-            sim_col, delete_col = st.columns(2)
+            sim_col, notes_col, delete_col = st.columns(3)
             with sim_col:
                 if st.button("Simulate", key=f"simulate_strategy_{idx}"):
                     today = dt.date.today()
@@ -501,9 +620,10 @@ def render_dashboard():
                     st.session_state.sim_market_ticker = "SPY"
                     st.session_state.sim_start_date = today - dt.timedelta(days=365 * 2)
                     st.session_state.sim_end_date = today
-                    st.session_state.sim_start_step = str(strat["start_step"])
-                    st.session_state.sim_step = str(strat["step"])
-                    st.session_state.sim_max_step = str(strat["max_step"])
+                    st.session_state.sim_use_psar = bool(strat.get("use_psar", True))
+                    st.session_state.sim_start_step = str(strat["start_step"] if strat.get("start_step") is not None else SIM_DEFAULTS["sim_start_step"])
+                    st.session_state.sim_step = str(strat["step"] if strat.get("step") is not None else SIM_DEFAULTS["sim_step"])
+                    st.session_state.sim_max_step = str(strat["max_step"] if strat.get("max_step") is not None else SIM_DEFAULTS["sim_max_step"])
                     st.session_state.sim_cost_per_trade = "1.0"
                     st.session_state.sim_initial_cash = "10000.0"
                     st.session_state.sim_hard_enabled = strat["hard_stop_pct"] is not None
@@ -520,6 +640,11 @@ def render_dashboard():
                     st.session_state.pending_section = "Simulation"
                     st.session_state.sim_auto_run = True
                     st.rerun()
+            with notes_col:
+                if st.button("Notes", key=f"strategy_notes_{idx}"):
+                    st.session_state.notes_strategy_idx = idx
+                    st.session_state.pending_section = "Strategy Notes"
+                    st.rerun()
             with delete_col:
                 if st.button("Delete", key=f"delete_strategy_{idx}"):
                     st.session_state.strategies.pop(idx)
@@ -529,15 +654,15 @@ def render_dashboard():
 
 ensure_state()
 default_section = st.session_state.current_section
-if st.session_state.pending_section in {"Dashboard", "Simulation", "Data Storage"}:
+if st.session_state.pending_section in {"Dashboard", "Simulation", "Data Storage", "Strategy Notes"}:
     default_section = st.session_state.pending_section
 
 with st.sidebar:
-    st.header("☰ Navigation (Dashboard / Simulation / Data Storage)")
+    st.header("☰ Navigation (Dashboard / Simulation / Data Storage / Strategy Notes)")
     section = st.radio(
         "Go to",
-        ["Dashboard", "Simulation", "Data Storage"],
-        index=["Dashboard", "Simulation", "Data Storage"].index(default_section),
+        ["Dashboard", "Simulation", "Data Storage", "Strategy Notes"],
+        index=["Dashboard", "Simulation", "Data Storage", "Strategy Notes"].index(default_section),
         label_visibility="collapsed",
     )
 
@@ -549,5 +674,7 @@ if section == "Simulation":
     render_simulation()
 elif section == "Data Storage":
     render_data_storage()
+elif section == "Strategy Notes":
+    render_strategy_notes()
 else:
     render_dashboard()
