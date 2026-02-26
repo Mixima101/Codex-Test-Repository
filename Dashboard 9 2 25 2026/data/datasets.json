@@ -1,0 +1,92 @@
+[
+  {
+    "id": "c26d85fe0f67",
+    "ticker": "WMT",
+    "start_date": "2024-02-23",
+    "end_date": "2026-02-25",
+    "row_count": 502,
+    "file": "data/datasets/WMT_c26d85fe0f67.csv",
+    "created_at": "2026-02-25 00:43"
+  },
+  {
+    "id": "0d8b50843801",
+    "ticker": "IBDRY",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/IBDRY_0d8b50843801.csv",
+    "created_at": "2026-02-26 06:16"
+  },
+  {
+    "id": "fa37ec93c056",
+    "ticker": "RWEOY",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/RWEOY_fa37ec93c056.csv",
+    "created_at": "2026-02-26 06:16"
+  },
+  {
+    "id": "283ad039a15f",
+    "ticker": "DNNGY",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/DNNGY_283ad039a15f.csv",
+    "created_at": "2026-02-26 06:16"
+  },
+  {
+    "id": "9f29d62dcd18",
+    "ticker": "SIEGY",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/SIEGY_9f29d62dcd18.csv",
+    "created_at": "2026-02-26 06:17"
+  },
+  {
+    "id": "0f3042c759b2",
+    "ticker": "ETN",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/ETN_0f3042c759b2.csv",
+    "created_at": "2026-02-26 06:17"
+  },
+  {
+    "id": "20c2de0ca368",
+    "ticker": "GEV",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 480,
+    "file": "data/datasets/GEV_20c2de0ca368.csv",
+    "created_at": "2026-02-26 06:17"
+  },
+  {
+    "id": "3f7a7638c344",
+    "ticker": "ENPH",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/ENPH_3f7a7638c344.csv",
+    "created_at": "2026-02-26 06:18"
+  },
+  {
+    "id": "6a3fbc8b140b",
+    "ticker": "FLNC",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/FLNC_6a3fbc8b140b.csv",
+    "created_at": "2026-02-26 06:18"
+  },
+  {
+    "id": "bd2efcf97251",
+    "ticker": "373220.KS",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 484,
+    "file": "data/datasets/373220KS_bd2efcf97251.csv",
+    "created_at": "2026-02-26 06:18"
+  }
+]

@@ -1,0 +1,112 @@
+[
+  {
+    "name": "Costco Codex Optimized",
+    "ticker": "COST",
+    "start_step": 0.000993,
+    "step": 0.015545,
+    "max_step": 0.06663,
+    "hard_stop_pct": 0.002,
+    "rolling_stop_pct": 0.01126,
+    "created_at": "2026-02-18 10:52"
+  },
+  {
+    "name": "GOOGL Optimized with Codex Long",
+    "ticker": "GOOGL",
+    "start_step": 0.01486982,
+    "step": 0.00184566,
+    "max_step": 0.03417311,
+    "hard_stop_pct": null,
+    "rolling_stop_pct": null,
+    "created_at": "2026-02-18 11:03"
+  },
+  {
+    "name": "NFLX Codex Optimized",
+    "ticker": "NFLX",
+    "start_step": 0.001,
+    "step": 0.005853,
+    "max_step": 0.064835,
+    "hard_stop_pct": 0.01,
+    "rolling_stop_pct": null,
+    "created_at": "2026-02-18 11:51"
+  },
+  {
+    "name": "FSLR Codex Optimized",
+    "ticker": "FSLR",
+    "start_step": 0.0035,
+    "step": 0.001,
+    "max_step": 0.2505,
+    "hard_stop_pct": 0.3062,
+    "rolling_stop_pct": 0.057300000000000004,
+    "created_at": "2026-02-18 12:02"
+  },
+  {
+    "name": "VST Codex Optimized",
+    "ticker": "VST",
+    "start_step": 0.0189422203,
+    "step": 0.0827066164,
+    "max_step": 0.1065770349,
+    "hard_stop_pct": 0.13,
+    "rolling_stop_pct": 0.4,
+    "created_at": "2026-02-18 12:40"
+  },
+  {
+    "name": "META Codex Optimized",
+    "ticker": "META",
+    "start_step": 0.040304,
+    "step": 0.040082,
+    "max_step": 0.272092,
+    "hard_stop_pct": 0.028176,
+    "rolling_stop_pct": 0.034244,
+    "created_at": "2026-02-18 13:58"
+  },
+  {
+    "name": "TSLA Codex Optimized",
+    "ticker": "TSLA",
+    "start_step": 0.00578101338541405,
+    "step": 0.04099390811908824,
+    "max_step": 1.8353221913043047,
+    "hard_stop_pct": 0.0015826694050118046,
+    "rolling_stop_pct": 0.21620988671177488,
+    "created_at": "2026-02-18 14:03"
+  },
+  {
+    "name": "CAT Codex Optimized",
+    "ticker": "CAT",
+    "start_step": 0.002166,
+    "step": 0.022476,
+    "max_step": 0.210656,
+    "hard_stop_pct": 0.0593,
+    "rolling_stop_pct": 0.0791,
+    "created_at": "2026-02-18 15:38"
+  },
+  {
+    "name": "BKNG Codex Optimized",
+    "ticker": "BKNG",
+    "start_step": 0.002256742578,
+    "step": 0.067916581941,
+    "max_step": 0.094493651658,
+    "hard_stop_pct": 0.004465,
+    "rolling_stop_pct": 0.49978900000000004,
+    "created_at": "2026-02-18 15:45"
+  },
+  {
+    "name": "NOC Optimized by CODEX",
+    "ticker": "NOC",
+    "start_step": 0.043,
+    "step": 0.0008,
+    "max_step": 0.18,
+    "hard_stop_pct": 0.05,
+    "rolling_stop_pct": 0.0167,
+    "created_at": "2026-02-18 16:59"
+  },
+  {
+    "name": "PHM Optimized by Codex",
+    "ticker": "PHM",
+    "start_step": 0.00610280252,
+    "step": 0.004392739746,
+    "max_step": 0.097765581115,
+    "hard_stop_pct": 0.15461730033425,
+    "rolling_stop_pct": 0.00866631903809,
+    "created_at": "2026-02-18 17:11"
+  }
+]
