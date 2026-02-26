@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.simulator import buy_and_hold_equity, simulate_long_flat
+from src.simulator import buy_and_hold_equity, simulate_long_flat, summarize_run
 
 
 def test_buy_and_hold_equity_scales_from_initial_cash():
@@ -33,3 +33,17 @@ def test_simulate_long_flat_hard_stop_exits_position():
     assert out.loc[idx[2], "position"] == 1
     assert out.loc[idx[3], "stop_exit"] == 1
     assert out.loc[idx[3], "position"] == 0
+
+
+def test_summarize_run_includes_trade_outcome_metrics():
+    idx = pd.date_range("2024-01-01", periods=6, freq="D")
+    close = pd.Series([100.0, 100.0, 110.0, 110.0, 90.0, 90.0], index=idx)
+    signal = pd.Series([0, 1, 1, 0, 1, 0], index=idx)
+
+    out = simulate_long_flat(close, signal, initial_cash=1000.0, cost_per_trade=0.0)
+    metrics = summarize_run(out, benchmark_returns=pd.Series(0.0, index=idx))
+
+    assert metrics["Winning Trades"] == 1.0
+    assert metrics["Losing Trades"] == 1.0
+    assert metrics["Win/Loss Ratio"] == 1.0
+    assert metrics["Average Return Per Trade (%)"] == 0.0

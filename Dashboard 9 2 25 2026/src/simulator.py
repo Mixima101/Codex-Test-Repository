@@ -120,6 +120,24 @@ def simulate_long_flat(
     return out
 
 
+def calculate_trade_returns(strategy_df: pd.DataFrame) -> list[float]:
+    trade_returns: list[float] = []
+    entry_price: float | None = None
+
+    for _, row in strategy_df.iterrows():
+        buy_price = row.get("buy_price")
+        sell_price = row.get("sell_price")
+
+        if pd.notna(buy_price):
+            entry_price = float(buy_price)
+
+        if pd.notna(sell_price) and entry_price is not None and entry_price > 0:
+            trade_returns.append(float(sell_price) / entry_price - 1.0)
+            entry_price = None
+
+    return trade_returns
+
+
 def buy_and_hold_equity(close: pd.Series, initial_cash: float) -> pd.Series:
     start = float(close.iloc[0])
     return (close / start) * float(initial_cash)
@@ -132,7 +150,21 @@ def summarize_run(strategy_df: pd.DataFrame, benchmark_returns: pd.Series) -> di
     turnover = float(position_change.sum())
     invested_pct = float(strategy_df["position"].mean())
     metrics = summarize_performance(strategy_returns, aligned_bench, turnover=turnover, invested_pct=invested_pct)
+    trade_returns = calculate_trade_returns(strategy_df)
+    winning_trades = sum(1 for ret in trade_returns if ret > 0)
+    losing_trades = sum(1 for ret in trade_returns if ret < 0)
+    if losing_trades == 0:
+        win_loss_ratio = float("inf") if winning_trades > 0 else 0.0
+    else:
+        win_loss_ratio = winning_trades / losing_trades
+
+    avg_trade_return_pct = float(np.mean(trade_returns) * 100.0) if trade_returns else 0.0
+
     metrics["Final Equity"] = float(strategy_df["equity"].iloc[-1])
     metrics["Total Return"] = float(strategy_df["equity"].iloc[-1] / strategy_df["equity"].iloc[0] - 1)
     metrics["Number of Trades"] = float(position_change.sum())
+    metrics["Winning Trades"] = float(winning_trades)
+    metrics["Losing Trades"] = float(losing_trades)
+    metrics["Win/Loss Ratio"] = float(win_loss_ratio)
+    metrics["Average Return Per Trade (%)"] = avg_trade_return_pct
     return metrics
