@@ -1,0 +1,344 @@
+[
+  {
+    "id": "c26d85fe0f67",
+    "ticker": "WMT",
+    "start_date": "2024-02-23",
+    "end_date": "2026-02-25",
+    "row_count": 502,
+    "file": "data/datasets/WMT_c26d85fe0f67.csv",
+    "created_at": "2026-02-25 00:43"
+  },
+  {
+    "id": "0d8b50843801",
+    "ticker": "IBDRY",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/IBDRY_0d8b50843801.csv",
+    "created_at": "2026-02-26 06:16"
+  },
+  {
+    "id": "fa37ec93c056",
+    "ticker": "RWEOY",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/RWEOY_fa37ec93c056.csv",
+    "created_at": "2026-02-26 06:16"
+  },
+  {
+    "id": "283ad039a15f",
+    "ticker": "DNNGY",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/DNNGY_283ad039a15f.csv",
+    "created_at": "2026-02-26 06:16"
+  },
+  {
+    "id": "9f29d62dcd18",
+    "ticker": "SIEGY",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/SIEGY_9f29d62dcd18.csv",
+    "created_at": "2026-02-26 06:17"
+  },
+  {
+    "id": "0f3042c759b2",
+    "ticker": "ETN",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/ETN_0f3042c759b2.csv",
+    "created_at": "2026-02-26 06:17"
+  },
+  {
+    "id": "20c2de0ca368",
+    "ticker": "GEV",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 480,
+    "file": "data/datasets/GEV_20c2de0ca368.csv",
+    "created_at": "2026-02-26 06:17"
+  },
+  {
+    "id": "3f7a7638c344",
+    "ticker": "ENPH",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/ENPH_3f7a7638c344.csv",
+    "created_at": "2026-02-26 06:18"
+  },
+  {
+    "id": "6a3fbc8b140b",
+    "ticker": "FLNC",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/FLNC_6a3fbc8b140b.csv",
+    "created_at": "2026-02-26 06:18"
+  },
+  {
+    "id": "bd2efcf97251",
+    "ticker": "373220.KS",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 484,
+    "file": "data/datasets/373220KS_bd2efcf97251.csv",
+    "created_at": "2026-02-26 06:18"
+  },
+  {
+    "id": "31c6a510f3f0",
+    "ticker": "V",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/V_31c6a510f3f0.csv",
+    "created_at": "2026-02-26 18:03"
+  },
+  {
+    "id": "c135dca191bb",
+    "ticker": "AVGO",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/AVGO_c135dca191bb.csv",
+    "created_at": "2026-02-26 18:04"
+  },
+  {
+    "id": "af1ffa88fd34",
+    "ticker": "RTX",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/RTX_af1ffa88fd34.csv",
+    "created_at": "2026-02-26 18:04"
+  },
+  {
+    "id": "1dc395976acb",
+    "ticker": "FIX",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/FIX_1dc395976acb.csv",
+    "created_at": "2026-02-26 18:05"
+  },
+  {
+    "id": "d1a5ca43f847",
+    "ticker": "ADBE",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/ADBE_d1a5ca43f847.csv",
+    "created_at": "2026-02-26 18:06"
+  },
+  {
+    "id": "1340ee64e37d",
+    "ticker": "CRM",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/CRM_1340ee64e37d.csv",
+    "created_at": "2026-02-26 18:06"
+  },
+  {
+    "id": "29ce2f2e585b",
+    "ticker": "NOW",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/NOW_29ce2f2e585b.csv",
+    "created_at": "2026-02-26 18:06"
+  },
+  {
+    "id": "19c7d32e6168",
+    "ticker": "AMD",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/AMD_19c7d32e6168.csv",
+    "created_at": "2026-02-26 18:06"
+  },
+  {
+    "id": "30f21edbef5e",
+    "ticker": "INTC",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/INTC_30f21edbef5e.csv",
+    "created_at": "2026-02-26 18:07"
+  },
+  {
+    "id": "995730d0b47e",
+    "ticker": "GLW",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/GLW_995730d0b47e.csv",
+    "created_at": "2026-02-26 21:21"
+  },
+  {
+    "id": "f1f3c4451a5a",
+    "ticker": "CIEN",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/CIEN_f1f3c4451a5a.csv",
+    "created_at": "2026-02-26 21:21"
+  },
+  {
+    "id": "228839044ce4",
+    "ticker": "TPL",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/TPL_228839044ce4.csv",
+    "created_at": "2026-02-26 21:22"
+  },
+  {
+    "id": "b367d653d4a6",
+    "ticker": "TER",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/TER_b367d653d4a6.csv",
+    "created_at": "2026-02-26 21:22"
+  },
+  {
+    "id": "d16978b26edc",
+    "ticker": "SNDK",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 259,
+    "file": "data/datasets/SNDK_d16978b26edc.csv",
+    "created_at": "2026-02-26 21:22"
+  },
+  {
+    "id": "a9a1ba5a24c7",
+    "ticker": "JCI",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/JCI_a9a1ba5a24c7.csv",
+    "created_at": "2026-02-26 21:23"
+  },
+  {
+    "id": "3ac81d008f5d",
+    "ticker": "TPR",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/TPR_3ac81d008f5d.csv",
+    "created_at": "2026-02-26 21:23"
+  },
+  {
+    "id": "c9595608e403",
+    "ticker": "VZ",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/VZ_c9595608e403.csv",
+    "created_at": "2026-02-26 21:23"
+  },
+  {
+    "id": "2881011550f6",
+    "ticker": "GRMN",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/GRMN_2881011550f6.csv",
+    "created_at": "2026-02-26 21:23"
+  },
+  {
+    "id": "33b61d2ffa1c",
+    "ticker": "LUV",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/LUV_33b61d2ffa1c.csv",
+    "created_at": "2026-02-26 21:23"
+  },
+  {
+    "id": "515a91be221b",
+    "ticker": "HWM",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/HWM_515a91be221b.csv",
+    "created_at": "2026-02-26 21:23"
+  },
+  {
+    "id": "7b0cd35727c9",
+    "ticker": "HSY",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/HSY_7b0cd35727c9.csv",
+    "created_at": "2026-02-26 21:24"
+  },
+  {
+    "id": "5fa2087b56ed",
+    "ticker": "EIX",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/EIX_5fa2087b56ed.csv",
+    "created_at": "2026-02-26 21:24"
+  },
+  {
+    "id": "a1b1692a6588",
+    "ticker": "DECK",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/DECK_a1b1692a6588.csv",
+    "created_at": "2026-02-26 21:24"
+  },
+  {
+    "id": "51ac0700731f",
+    "ticker": "NCLH",
+    "start_date": "2024-02-24",
+    "end_date": "2026-02-26",
+    "row_count": 502,
+    "file": "data/datasets/NCLH_51ac0700731f.csv",
+    "created_at": "2026-02-26 21:24"
+  },
+  {
+    "id": "dc1f6e648a4e",
+    "ticker": "SNDK",
+    "start_date": "2022-02-25",
+    "end_date": "2026-02-27",
+    "row_count": 260,
+    "file": "data/datasets/SNDK_dc1f6e648a4e.csv",
+    "created_at": "2026-02-27 14:08"
+  },
+  {
+    "id": "0a13ffcc5a68",
+    "ticker": "SNDK",
+    "start_date": "2022-02-25",
+    "end_date": "2026-02-27",
+    "row_count": 260,
+    "file": "data/datasets/SNDK_0a13ffcc5a68.csv",
+    "created_at": "2026-02-27 14:28"
+  },
+  {
+    "id": "f2e598fee733",
+    "ticker": "SNDK",
+    "start_date": "2020-02-25",
+    "end_date": "2026-02-27",
+    "row_count": 260,
+    "file": "data/datasets/SNDK_f2e598fee733.csv",
+    "created_at": "2026-02-27 14:29"
+  },
+  {
+    "id": "be4ca148161a",
+    "ticker": "HSY",
+    "start_date": "2020-02-25",
+    "end_date": "2026-02-27",
+    "row_count": 1510,
+    "file": "data/datasets/HSY_be4ca148161a.csv",
+    "created_at": "2026-02-27 14:35"
+  }
+]
