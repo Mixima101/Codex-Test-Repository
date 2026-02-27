@@ -47,3 +47,21 @@ def test_summarize_run_includes_trade_outcome_metrics():
     assert metrics["Losing Trades"] == 1.0
     assert metrics["Win/Loss Ratio"] == 1.0
     assert metrics["Average Return Per Trade (%)"] == 0.0
+
+
+def test_regime_filters_block_entries_when_disabled_for_day():
+    idx = pd.date_range("2024-01-01", periods=4, freq="D")
+    close = pd.Series([10.0, 11.0, 12.0, 13.0], index=idx)
+    signal = pd.Series([0, 1, 1, 1], index=idx)
+    volatility_regime = pd.Series([1, 1, 0, 1], index=idx)
+
+    out = simulate_long_flat(
+        close,
+        signal,
+        initial_cash=1000.0,
+        cost_per_trade=0.0,
+        volatility_regime=volatility_regime,
+    )
+
+    assert out.loc[idx[2], "position"] == 0
+    assert out.loc[idx[3], "position"] == 1
