@@ -28,6 +28,13 @@ SIM_DEFAULTS = {
     "sim_hard_pct": "8",
     "sim_rolling_enabled": False,
     "sim_rolling_pct": "12",
+    "sim_vol_enabled": False,
+    "sim_vol_lookback": "20",
+    "sim_vol_min_pct": "",
+    "sim_vol_max_pct": "80",
+    "sim_trend_enabled": False,
+    "sim_trend_lookback": "100",
+    "sim_trend_min_pct": "0",
     "sim_strategy_name": "",
 }
 
@@ -79,6 +86,13 @@ def parse_optional_pct(raw: str, label: str, enabled: bool) -> float | None:
     return value / 100.0
 
 
+def parse_optional_float(raw: str, label: str) -> float | None:
+    text = raw.strip()
+    if not text:
+        return None
+    return parse_float_input(text, label)
+
+
 @st.cache_data(show_spinner=False)
 def cached_download(ticker_list: tuple[str, ...], start: str, end: str):
     return download_ohlcv(ticker_list, start=start, end=end, threads=False)
@@ -128,6 +142,13 @@ def build_signal_df(
     cost_per_trade: float,
     hard_stop_pct: float | None,
     trailing_stop_pct: float | None,
+    volatility_enabled: bool = False,
+    volatility_lookback: int = 20,
+    volatility_min_pct: float | None = None,
+    volatility_max_pct: float | None = None,
+    trend_enabled: bool = False,
+    trend_lookback: int = 100,
+    trend_min_pct: float = 0.0,
     use_psar: bool = True,
 ):
     asset_dataset = find_dataset(st.session_state.datasets, ticker, start_date, end_date)
@@ -168,6 +189,23 @@ def build_signal_df(
         asset["psar"] = pd.NA
         asset["signal"] = 1
 
+    volatility_regime = None
+    if volatility_enabled:
+        returns = asset["Close"].pct_change().fillna(0.0)
+        asset["volatility_pct"] = returns.rolling(volatility_lookback).std().fillna(0.0) * (252**0.5) * 100.0
+        vol_ok = pd.Series(True, index=asset.index)
+        if volatility_min_pct is not None:
+            vol_ok &= asset["volatility_pct"] >= volatility_min_pct
+        if volatility_max_pct is not None:
+            vol_ok &= asset["volatility_pct"] <= volatility_max_pct
+        volatility_regime = vol_ok
+
+    trend_regime = None
+    if trend_enabled:
+        trend_sma = asset["Close"].rolling(trend_lookback).mean()
+        asset["trend_distance_pct"] = ((asset["Close"] / trend_sma) - 1.0).fillna(0.0) * 100.0
+        trend_regime = asset["trend_distance_pct"] >= trend_min_pct
+
     sim_df = simulate_long_flat(
         close=asset["Close"],
         signal=asset["signal"],
@@ -175,6 +213,8 @@ def build_signal_df(
         cost_per_trade=cost_per_trade,
         hard_stop_pct=hard_stop_pct,
         trailing_stop_pct=trailing_stop_pct,
+        volatility_regime=volatility_regime,
+        trend_regime=trend_regime,
     )
     return sim_df, market
 
@@ -197,6 +237,22 @@ def validate_cost_and_cash(cost_per_trade: float, initial_cash: float):
         raise ValueError("Cost per trade cannot be negative.")
     if initial_cash <= 0:
         raise ValueError("Starting account value must be greater than 0.")
+
+
+def validate_regime_inputs(
+    vol_enabled: bool,
+    vol_lookback: float,
+    trend_enabled: bool,
+    trend_lookback: float,
+    vol_min_pct: float | None,
+    vol_max_pct: float | None,
+):
+    if vol_enabled and vol_lookback < 2:
+        raise ValueError("Volatility lookback must be at least 2.")
+    if trend_enabled and trend_lookback < 2:
+        raise ValueError("Trend lookback must be at least 2.")
+    if vol_min_pct is not None and vol_max_pct is not None and vol_min_pct >= vol_max_pct:
+        raise ValueError("Volatility min % must be less than volatility max %.")
 
 
 def render_simulation():
@@ -233,6 +289,17 @@ def render_simulation():
             rolling_enabled = st.checkbox("Rolling Stop", key="sim_rolling_enabled")
             rolling_text = st.text_input("Rolling stop %", key="sim_rolling_pct", help="Enter value anytime; checkbox controls activation.")
 
+        r1, r2 = st.columns(2)
+        with r1:
+            vol_enabled = st.checkbox("Enable volatility regime", key="sim_vol_enabled")
+            vol_lookback_text = st.text_input("Volatility lookback (days)", key="sim_vol_lookback")
+            vol_min_text = st.text_input("Volatility min % (optional)", key="sim_vol_min_pct")
+            vol_max_text = st.text_input("Volatility max % (optional)", key="sim_vol_max_pct")
+        with r2:
+            trend_enabled = st.checkbox("Enable trend regime", key="sim_trend_enabled")
+            trend_lookback_text = st.text_input("Trend lookback (SMA days)", key="sim_trend_lookback")
+            trend_min_text = st.text_input("Trend min distance %", key="sim_trend_min_pct")
+
         simulate_btn = st.form_submit_button("Run Simulation", type="primary")
 
     add_strategy_btn = st.button("Add Strategy to Dashboard", key="sim_add_strategy")
@@ -258,7 +325,20 @@ def render_simulation():
         initial_cash = parse_float_input(initial_cash_text, "Starting account value")
         hard_stop_pct = parse_optional_pct(hard_text, "Hard stop %", hard_enabled)
         rolling_stop_pct = parse_optional_pct(rolling_text, "Rolling stop %", rolling_enabled)
+        volatility_lookback = int(parse_float_input(vol_lookback_text, "Volatility lookback"))
+        volatility_min_pct = parse_optional_float(vol_min_text, "Volatility min %")
+        volatility_max_pct = parse_optional_float(vol_max_text, "Volatility max %")
+        trend_lookback = int(parse_float_input(trend_lookback_text, "Trend lookback"))
+        trend_min_pct = parse_float_input(trend_min_text, "Trend min distance %")
         validate_cost_and_cash(cost_per_trade, initial_cash)
+        validate_regime_inputs(
+            vol_enabled,
+            volatility_lookback,
+            trend_enabled,
+            trend_lookback,
+            volatility_min_pct,
+            volatility_max_pct,
+        )
 
         if use_psar:
             start_step = parse_float_input(start_step_text, "PSAR start step")
@@ -280,6 +360,13 @@ def render_simulation():
         "max_step": max_step,
         "hard_stop_pct": hard_stop_pct,
         "rolling_stop_pct": rolling_stop_pct,
+        "volatility_enabled": vol_enabled,
+        "volatility_lookback": volatility_lookback,
+        "volatility_min_pct": volatility_min_pct,
+        "volatility_max_pct": volatility_max_pct,
+        "trend_enabled": trend_enabled,
+        "trend_lookback": trend_lookback,
+        "trend_min_pct": trend_min_pct,
         "use_psar": use_psar,
     }
 
@@ -298,6 +385,13 @@ def render_simulation():
                     cost_per_trade,
                     hard_stop_pct,
                     rolling_stop_pct,
+                    volatility_enabled=vol_enabled,
+                    volatility_lookback=volatility_lookback,
+                    volatility_min_pct=volatility_min_pct,
+                    volatility_max_pct=volatility_max_pct,
+                    trend_enabled=trend_enabled,
+                    trend_lookback=trend_lookback,
+                    trend_min_pct=trend_min_pct,
                     use_psar=use_psar,
                 )
             except ValueError as exc:
@@ -355,6 +449,13 @@ def render_simulation():
                 "max_step": max_step,
                 "hard_stop_pct": hard_stop_pct,
                 "rolling_stop_pct": rolling_stop_pct,
+                "volatility_enabled": vol_enabled,
+                "volatility_lookback": volatility_lookback,
+                "volatility_min_pct": volatility_min_pct,
+                "volatility_max_pct": volatility_max_pct,
+                "trend_enabled": trend_enabled,
+                "trend_lookback": trend_lookback,
+                "trend_min_pct": trend_min_pct,
                 "use_psar": use_psar,
                 "created_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
@@ -424,6 +525,13 @@ def render_data_storage():
                     st.session_state.sim_hard_pct = ""
                     st.session_state.sim_rolling_enabled = False
                     st.session_state.sim_rolling_pct = ""
+                    st.session_state.sim_vol_enabled = False
+                    st.session_state.sim_vol_lookback = "20"
+                    st.session_state.sim_vol_min_pct = ""
+                    st.session_state.sim_vol_max_pct = "80"
+                    st.session_state.sim_trend_enabled = False
+                    st.session_state.sim_trend_lookback = "100"
+                    st.session_state.sim_trend_min_pct = "0"
                     st.session_state.sim_strategy_name = ""
                     st.session_state.sim_auto_run = False
                     st.session_state.pending_section = "Simulation"
@@ -451,6 +559,13 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
             cost_per_trade=0.0,
             hard_stop_pct=strategy["hard_stop_pct"],
             trailing_stop_pct=strategy["rolling_stop_pct"],
+            volatility_enabled=bool(strategy.get("volatility_enabled", False)),
+            volatility_lookback=int(strategy.get("volatility_lookback", 20)),
+            volatility_min_pct=strategy.get("volatility_min_pct"),
+            volatility_max_pct=strategy.get("volatility_max_pct"),
+            trend_enabled=bool(strategy.get("trend_enabled", False)),
+            trend_lookback=int(strategy.get("trend_lookback", 100)),
+            trend_min_pct=float(strategy.get("trend_min_pct", 0.0)),
             use_psar=strategy.get("use_psar", True),
         )
     except Exception:
@@ -467,6 +582,13 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
 def normalize_strategy_fields(strategy: dict) -> dict:
     strategy.setdefault("notes", "")
     strategy.setdefault("use_psar", True)
+    strategy.setdefault("volatility_enabled", False)
+    strategy.setdefault("volatility_lookback", 20)
+    strategy.setdefault("volatility_min_pct", None)
+    strategy.setdefault("volatility_max_pct", 80.0)
+    strategy.setdefault("trend_enabled", False)
+    strategy.setdefault("trend_lookback", 100)
+    strategy.setdefault("trend_min_pct", 0.0)
     tags = strategy.get("tags", [])
     if not isinstance(tags, list):
         tags = []
@@ -606,7 +728,15 @@ def render_dashboard():
                 if strat.get("use_psar", True)
                 else "Mode: Buy & Hold / Stops-only"
             )
-            st.caption(f"{mode_text} • {stop_text} • {detail} • Tags: {tags_text}")
+            regime_parts = []
+            if strat.get("volatility_enabled", False):
+                regime_parts.append(
+                    f"VolRegime({strat.get('volatility_lookback', 20)}d, {strat.get('volatility_min_pct', 'any')}% to {strat.get('volatility_max_pct', 'any')}%)"
+                )
+            if strat.get("trend_enabled", False):
+                regime_parts.append(f"TrendRegime({strat.get('trend_lookback', 100)}d, min {strat.get('trend_min_pct', 0.0)}%)")
+            regime_text = " | ".join(regime_parts) if regime_parts else "No regimes"
+            st.caption(f"{mode_text} • {stop_text} • {regime_text} • {detail} • Tags: {tags_text}")
         with right:
             st.markdown(
                 f"<div style='background:{color};padding:0.6rem;border-radius:0.4rem;color:white;text-align:center;font-weight:700'>{signal}</div>",
@@ -636,6 +766,13 @@ def render_dashboard():
                         if strat["rolling_stop_pct"] is not None
                         else SIM_DEFAULTS["sim_rolling_pct"]
                     )
+                    st.session_state.sim_vol_enabled = bool(strat.get("volatility_enabled", False))
+                    st.session_state.sim_vol_lookback = str(strat.get("volatility_lookback", 20))
+                    st.session_state.sim_vol_min_pct = "" if strat.get("volatility_min_pct") is None else str(strat.get("volatility_min_pct"))
+                    st.session_state.sim_vol_max_pct = "" if strat.get("volatility_max_pct") is None else str(strat.get("volatility_max_pct"))
+                    st.session_state.sim_trend_enabled = bool(strat.get("trend_enabled", False))
+                    st.session_state.sim_trend_lookback = str(strat.get("trend_lookback", 100))
+                    st.session_state.sim_trend_min_pct = str(strat.get("trend_min_pct", 0.0))
                     st.session_state.sim_strategy_name = strat["name"]
                     st.session_state.pending_section = "Simulation"
                     st.session_state.sim_auto_run = True
