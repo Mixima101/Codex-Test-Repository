@@ -79,6 +79,16 @@ def parse_optional_pct(raw: str, label: str, enabled: bool) -> float | None:
     return value / 100.0
 
 
+def parse_optional_date(raw: str) -> dt.date | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    try:
+        return dt.date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
 @st.cache_data(show_spinner=False)
 def cached_download(ticker_list: tuple[str, ...], start: str, end: str):
     return download_ohlcv(ticker_list, start=start, end=end, threads=False)
@@ -457,6 +467,9 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
         return "No Data", "gray", "Unable to load quote history", float("-inf")
 
     latest = int(sim_df["position"].iloc[-1])
+    manual_buy_date = parse_optional_date(strategy.get("buy_date", ""))
+    if manual_buy_date is not None:
+        latest = anchored_position(sim_df, manual_buy_date, strategy["hard_stop_pct"], strategy["rolling_stop_pct"])
     label = "BUY" if latest == 1 else "SELL"
     color = "#0A7D34" if latest == 1 else "#BA1A1A"
     detail = f"Last close: ${sim_df['Close'].iloc[-1]:.2f}"
@@ -464,9 +477,64 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
     return label, color, detail, sim_return
 
 
+def anchored_position(
+    sim_df: pd.DataFrame,
+    buy_date: dt.date,
+    hard_stop_pct: float | None,
+    trailing_stop_pct: float | None,
+) -> int:
+    if sim_df.empty:
+        return 0
+
+    close = sim_df["Close"].astype(float)
+    target_pos = sim_df["signal"].shift(1).fillna(0).astype(int)
+    buy_ts = pd.Timestamp(buy_date)
+
+    if buy_ts > close.index[-1]:
+        return 0
+
+    if buy_ts < close.index[0]:
+        buy_ts = close.index[0]
+
+    start_loc = int(close.index.get_indexer([buy_ts], method="backfill")[0])
+    if start_loc < 0:
+        return 0
+
+    anchor_loc = max(0, start_loc - 1)
+    invested = 1
+    entry_price = float(close.iloc[anchor_loc])
+    highest_close = entry_price
+
+    for i in range(start_loc, len(close)):
+        price = float(close.iloc[i])
+        desired = int(target_pos.iloc[i])
+
+        if invested == 1:
+            highest_close = max(highest_close, price)
+            candidate_levels: list[float] = []
+            if hard_stop_pct is not None:
+                candidate_levels.append(entry_price * (1 - hard_stop_pct))
+            if trailing_stop_pct is not None:
+                candidate_levels.append(highest_close * (1 - trailing_stop_pct))
+            if candidate_levels and price <= max(candidate_levels):
+                desired = 0
+
+        if desired != invested:
+            invested = desired
+            if invested == 1:
+                entry_price = price
+                highest_close = price
+            else:
+                entry_price = 0.0
+                highest_close = 0.0
+
+    return invested
+
+
 def normalize_strategy_fields(strategy: dict) -> dict:
     strategy.setdefault("notes", "")
     strategy.setdefault("use_psar", True)
+    strategy.setdefault("buy_date", "")
     tags = strategy.get("tags", [])
     if not isinstance(tags, list):
         tags = []
@@ -504,6 +572,12 @@ def render_strategy_notes():
     st.subheader(f"{strategy.get('name', 'Unnamed Strategy')} ({strategy.get('ticker', 'N/A')})")
 
     notes_value = st.text_area("Notes", value=strategy.get("notes", ""), height=220, key=f"notes_text_{idx}")
+    buy_date_value = st.text_input(
+        "Date bought (optional, YYYY-MM-DD)",
+        value=strategy.get("buy_date", ""),
+        help="If set, Dashboard BUY/SELL uses this as your personal buy date and anchors entry to the prior close.",
+        key=f"notes_buy_date_{idx}",
+    )
     tags_value = st.text_input(
         "Tags",
         value=", ".join(strategy.get("tags", [])),
@@ -515,6 +589,11 @@ def render_strategy_notes():
     with save_col:
         if st.button("Save Notes", key=f"save_notes_{idx}", type="primary"):
             st.session_state.strategies[idx]["notes"] = notes_value
+            normalized_buy_date = (buy_date_value or "").strip()
+            if normalized_buy_date and parse_optional_date(normalized_buy_date) is None:
+                st.error("Date bought must be in YYYY-MM-DD format.")
+                return
+            st.session_state.strategies[idx]["buy_date"] = normalized_buy_date
             st.session_state.strategies[idx]["tags"] = parse_tags(tags_value)
             save_strategies(st.session_state.strategies)
             st.success("Strategy notes saved.")
@@ -606,7 +685,13 @@ def render_dashboard():
                 if strat.get("use_psar", True)
                 else "Mode: Buy & Hold / Stops-only"
             )
-            st.caption(f"{mode_text} • {stop_text} • {detail} • Tags: {tags_text}")
+            buy_date = parse_optional_date(strat.get("buy_date", ""))
+            buy_date_text = (
+                f"Date bought: {buy_date.isoformat()} (entry anchors on prior close)"
+                if buy_date is not None
+                else "Date bought: Simulation"
+            )
+            st.caption(f"{mode_text} • {stop_text} • {buy_date_text} • {detail} • Tags: {tags_text}")
         with right:
             st.markdown(
                 f"<div style='background:{color};padding:0.6rem;border-radius:0.4rem;color:white;text-align:center;font-weight:700'>{signal}</div>",
