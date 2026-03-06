@@ -7,10 +7,7 @@
     "max_step": 0.06663,
     "hard_stop_pct": 0.002,
     "rolling_stop_pct": 0.01126,
-    "created_at": "2026-02-18 10:52",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 10:52"
   },
   {
     "name": "GOOGL Optimized with Codex Long",
@@ -20,10 +17,7 @@
     "max_step": 0.03417311,
     "hard_stop_pct": null,
     "rolling_stop_pct": null,
-    "created_at": "2026-02-18 11:03",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 11:03"
   },
   {
     "name": "NFLX Codex Optimized",
@@ -33,10 +27,7 @@
     "max_step": 0.064835,
     "hard_stop_pct": 0.01,
     "rolling_stop_pct": null,
-    "created_at": "2026-02-18 11:51",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 11:51"
   },
   {
     "name": "FSLR Codex Optimized",
@@ -46,10 +37,7 @@
     "max_step": 0.2505,
     "hard_stop_pct": 0.3062,
     "rolling_stop_pct": 0.057300000000000004,
-    "created_at": "2026-02-18 12:02",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 12:02"
   },
   {
     "name": "VST Codex Optimized",
@@ -59,10 +47,7 @@
     "max_step": 0.1065770349,
     "hard_stop_pct": 0.13,
     "rolling_stop_pct": 0.4,
-    "created_at": "2026-02-18 12:40",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 12:40"
   },
   {
     "name": "META Codex Optimized",
@@ -72,10 +57,7 @@
     "max_step": 0.272092,
     "hard_stop_pct": 0.028176,
     "rolling_stop_pct": 0.034244,
-    "created_at": "2026-02-18 13:58",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 13:58"
   },
   {
     "name": "TSLA Codex Optimized",
@@ -85,10 +67,7 @@
     "max_step": 1.8353221913043047,
     "hard_stop_pct": 0.0015826694050118046,
     "rolling_stop_pct": 0.21620988671177488,
-    "created_at": "2026-02-18 14:03",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 14:03"
   },
   {
     "name": "CAT Codex Optimized",
@@ -98,10 +77,7 @@
     "max_step": 0.210656,
     "hard_stop_pct": 0.0593,
     "rolling_stop_pct": 0.0791,
-    "created_at": "2026-02-18 15:38",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 15:38"
   },
   {
     "name": "BKNG Codex Optimized",
@@ -111,10 +87,7 @@
     "max_step": 0.094493651658,
     "hard_stop_pct": 0.004465,
     "rolling_stop_pct": 0.49978900000000004,
-    "created_at": "2026-02-18 15:45",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 15:45"
   },
   {
     "name": "NOC Optimized by CODEX",
@@ -124,10 +97,7 @@
     "max_step": 0.18,
     "hard_stop_pct": 0.05,
     "rolling_stop_pct": 0.0167,
-    "created_at": "2026-02-18 16:59",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 16:59"
   },
   {
     "name": "PHM Optimized by Codex",
@@ -137,10 +107,7 @@
     "max_step": 0.097765581115,
     "hard_stop_pct": 0.15461730033425,
     "rolling_stop_pct": 0.00866631903809,
-    "created_at": "2026-02-18 17:11",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-18 17:11"
   },
   {
     "name": "ETN PSAR",
@@ -150,10 +117,7 @@
     "max_step": 0.2005,
     "hard_stop_pct": 0.005,
     "rolling_stop_pct": 0.1286,
-    "created_at": "2026-02-26 07:06",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-26 07:06"
   },
   {
     "name": "GEV PSAR",
@@ -163,10 +127,7 @@
     "max_step": 0.6783184144039315,
     "hard_stop_pct": 0.05,
     "rolling_stop_pct": null,
-    "created_at": "2026-02-26 07:20",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
+    "created_at": "2026-02-26 07:20"
   },
   {
     "name": "FLNC PSAR",
@@ -176,98 +137,6 @@
     "max_step": 1.2,
     "hard_stop_pct": 0.006501887594470001,
     "rolling_stop_pct": 0.14782304540501,
-    "created_at": "2026-02-26 07:34",
-    "notes": "",
-    "use_psar": true,
-    "tags": []
-  },
-  {
-    "name": "CIEN Optimized PSAR",
-    "ticker": "CIEN",
-    "start_step": 0.005186912291147717,
-    "step": 0.01769256245863824,
-    "max_step": 0.02344926258834995,
-    "hard_stop_pct": 0.09094396610914457,
-    "rolling_stop_pct": 0.2477448942403427,
-    "use_psar": true,
-    "created_at": "2026-02-26 21:45",
-    "notes": "",
-    "tags": []
-  },
-  {
-    "name": "GLW Optimized PSAR",
-    "ticker": "GLW",
-    "start_step": 0.009641007898472172,
-    "step": 0.010571124197830779,
-    "max_step": 0.013281975869953666,
-    "hard_stop_pct": 0.04116547074852155,
-    "rolling_stop_pct": 0.25339512109203594,
-    "use_psar": true,
-    "created_at": "2026-02-26 21:48",
-    "notes": "",
-    "tags": []
-  },
-  {
-    "name": "SNDK Optimized",
-    "ticker": "SNDK",
-    "start_step": 0.03215990703950371,
-    "step": 0.00814748543351821,
-    "max_step": 0.09439567434424312,
-    "hard_stop_pct": 0.19730720097300788,
-    "rolling_stop_pct": 0.2985930804160618,
-    "use_psar": true,
-    "created_at": "2026-02-26 22:06",
-    "notes": "",
-    "tags": []
-  },
-  {
-    "name": "TPR Optimized Strategy",
-    "ticker": "TPR",
-    "start_step": 0.03573972113637092,
-    "step": 0.06180809324692675,
-    "max_step": 0.08162844284626807,
-    "hard_stop_pct": null,
-    "rolling_stop_pct": null,
-    "use_psar": true,
-    "created_at": "2026-02-26 22:27",
-    "notes": "",
-    "tags": []
-  },
-  {
-    "name": "HWM Optimized PSARS",
-    "ticker": "HWM",
-    "start_step": 0.008794,
-    "step": 0.006397,
-    "max_step": 0.01871,
-    "hard_stop_pct": null,
-    "rolling_stop_pct": null,
-    "use_psar": true,
-    "created_at": "2026-02-26 22:31",
-    "notes": "",
-    "tags": []
-  },
-  {
-    "name": "NCLH Optimized PSARS",
-    "ticker": "NCLH",
-    "start_step": 0.007106,
-    "step": 0.006455,
-    "max_step": 0.592616,
-    "hard_stop_pct": 0.11974800000000001,
-    "rolling_stop_pct": 0.333651,
-    "use_psar": true,
-    "created_at": "2026-02-26 22:37",
-    "notes": "",
-    "tags": []
-  },
-  {
-    "name": "SNDK 2 Optimized Better",
-    "ticker": "SNDK",
-    "start_step": 0.013444837760921655,
-    "step": 0.011095826528514928,
-    "max_step": 0.23917191983183872,
-    "hard_stop_pct": 0.05499111897770945,
-    "rolling_stop_pct": 0.15293286762136332,
-    "use_psar": true,
-    "created_at": "2026-02-27 12:12"
+    "created_at": "2026-02-26 07:34"
   }
 ]

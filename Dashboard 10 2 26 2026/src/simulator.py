@@ -13,6 +13,8 @@ def simulate_long_flat(
     cost_per_trade: float,
     hard_stop_pct: float | None = None,
     trailing_stop_pct: float | None = None,
+    volatility_regime: pd.Series | None = None,
+    trend_regime: pd.Series | None = None,
 ) -> pd.DataFrame:
     """Simulate a long/flat strategy with all-in/all-out allocation and fixed trade costs.
 
@@ -42,6 +44,17 @@ def simulate_long_flat(
         buy_price = np.nan
         sell_price = np.nan
         desired = int(target_pos.loc[dt])
+
+        vol_ok = True
+        if volatility_regime is not None and dt in volatility_regime.index:
+            vol_ok = bool(volatility_regime.loc[dt])
+
+        trend_ok = True
+        if trend_regime is not None and dt in trend_regime.index:
+            trend_ok = bool(trend_regime.loc[dt])
+
+        if invested == 0 and desired == 1 and (not vol_ok or not trend_ok):
+            desired = 0
 
         stop_level = np.nan
         stop_exit = 0
@@ -114,6 +127,8 @@ def simulate_long_flat(
             "sell_price": sells,
             "stop_level": stop_levels,
             "stop_exit": stop_exits,
+            "volatility_regime": (volatility_regime.reindex(idx).fillna(True).astype(int) if volatility_regime is not None else 1),
+            "trend_regime": (trend_regime.reindex(idx).fillna(True).astype(int) if trend_regime is not None else 1),
         },
         index=idx,
     )
