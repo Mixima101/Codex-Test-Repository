@@ -457,6 +457,7 @@ def render_simulation():
                 "trend_lookback": trend_lookback,
                 "trend_min_pct": trend_min_pct,
                 "use_psar": use_psar,
+                "date_bought": None,
                 "created_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
         )
@@ -572,9 +573,46 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
         return "No Data", "gray", "Unable to load quote history", float("-inf")
 
     latest = int(sim_df["position"].iloc[-1])
+    date_bought = strategy.get("date_bought")
+    if date_bought:
+        try:
+            bought_date = dt.date.fromisoformat(str(date_bought))
+            personal_window = sim_df.loc[sim_df.index.date >= bought_date]
+            if not personal_window.empty:
+                target_pos = personal_window["signal"].shift(1).fillna(0).astype(int)
+                invested = 1
+                entry_price = float(personal_window["Close"].iloc[0])
+                highest_close = entry_price
+
+                for row_dt, row in personal_window.iterrows():
+                    price = float(row["Close"])
+                    highest_close = max(highest_close, price)
+                    desired = int(target_pos.loc[row_dt])
+
+                    candidate_levels: list[float] = []
+                    if strategy["hard_stop_pct"] is not None:
+                        candidate_levels.append(entry_price * (1 - strategy["hard_stop_pct"]))
+                    if strategy["rolling_stop_pct"] is not None:
+                        candidate_levels.append(highest_close * (1 - strategy["rolling_stop_pct"]))
+
+                    if candidate_levels and price <= max(candidate_levels):
+                        desired = 0
+
+                    if desired != invested:
+                        invested = desired
+                        if invested == 1:
+                            entry_price = price
+                            highest_close = price
+
+                latest = invested
+        except ValueError:
+            pass
+
     label = "BUY" if latest == 1 else "SELL"
     color = "#0A7D34" if latest == 1 else "#BA1A1A"
     detail = f"Last close: ${sim_df['Close'].iloc[-1]:.2f}"
+    if date_bought:
+        detail = f"{detail} • Date bought: {date_bought}"
     sim_return = float(sim_df["equity"].iloc[-1] / sim_df["equity"].iloc[0] - 1.0)
     return label, color, detail, sim_return
 
@@ -589,6 +627,7 @@ def normalize_strategy_fields(strategy: dict) -> dict:
     strategy.setdefault("trend_enabled", False)
     strategy.setdefault("trend_lookback", 100)
     strategy.setdefault("trend_min_pct", 0.0)
+    strategy.setdefault("date_bought", None)
     tags = strategy.get("tags", [])
     if not isinstance(tags, list):
         tags = []
@@ -626,6 +665,12 @@ def render_strategy_notes():
     st.subheader(f"{strategy.get('name', 'Unnamed Strategy')} ({strategy.get('ticker', 'N/A')})")
 
     notes_value = st.text_area("Notes", value=strategy.get("notes", ""), height=220, key=f"notes_text_{idx}")
+    date_bought_value = st.text_input(
+        "Date bought (optional, YYYY-MM-DD)",
+        value=strategy.get("date_bought") or "",
+        key=f"notes_date_bought_{idx}",
+    ).strip()
+    clear_bought_date = st.checkbox("Clear date bought", key=f"notes_clear_date_bought_{idx}")
     tags_value = st.text_input(
         "Tags",
         value=", ".join(strategy.get("tags", [])),
@@ -637,6 +682,15 @@ def render_strategy_notes():
     with save_col:
         if st.button("Save Notes", key=f"save_notes_{idx}", type="primary"):
             st.session_state.strategies[idx]["notes"] = notes_value
+            if clear_bought_date or not date_bought_value:
+                st.session_state.strategies[idx]["date_bought"] = None
+            else:
+                try:
+                    dt.date.fromisoformat(date_bought_value)
+                except ValueError:
+                    st.error("Date bought must be in YYYY-MM-DD format.")
+                    return
+                st.session_state.strategies[idx]["date_bought"] = date_bought_value
             st.session_state.strategies[idx]["tags"] = parse_tags(tags_value)
             save_strategies(st.session_state.strategies)
             st.success("Strategy notes saved.")
