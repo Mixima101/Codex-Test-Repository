@@ -504,10 +504,20 @@ def anchored_position(
     invested = 1
     entry_price = float(close.iloc[anchor_loc])
     highest_close = entry_price
+    # The manual buy date represents an already-open position. If the model signal was
+    # already long on that date, we should not immediately re-enter after a stop unless
+    # there is a fresh flat->long cycle.
+    allow_reentry = False
 
     for i in range(start_loc, len(close)):
         price = float(close.iloc[i])
-        desired = int(target_pos.iloc[i])
+        target = int(target_pos.iloc[i])
+        if invested == 1:
+            desired = target
+        else:
+            if target == 0:
+                allow_reentry = True
+            desired = 1 if (target == 1 and allow_reentry) else 0
 
         if invested == 1:
             highest_close = max(highest_close, price)
@@ -524,6 +534,7 @@ def anchored_position(
             if invested == 1:
                 entry_price = price
                 highest_close = price
+                allow_reentry = False
             else:
                 entry_price = 0.0
                 highest_close = 0.0
