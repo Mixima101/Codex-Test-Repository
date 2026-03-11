@@ -22,8 +22,10 @@ SIM_DEFAULTS = {
     "sim_step": "0.02",
     "sim_max_step": "0.2",
     "sim_use_psar": True,
+    "sim_position_side": "Long",
     "sim_cost_per_trade": "1.0",
     "sim_initial_cash": "10000.0",
+    "sim_short_margin_rate_pct": "7.25",
     "sim_hard_enabled": False,
     "sim_hard_pct": "8",
     "sim_rolling_enabled": False,
@@ -139,6 +141,8 @@ def build_signal_df(
     hard_stop_pct: float | None,
     trailing_stop_pct: float | None,
     use_psar: bool = True,
+    side: str = "long",
+    short_margin_rate_pct: float = 7.25,
 ):
     asset_dataset = find_dataset(st.session_state.datasets, ticker, start_date, end_date)
     market_dataset = find_dataset(st.session_state.datasets, market_ticker, start_date, end_date)
@@ -169,11 +173,18 @@ def build_signal_df(
     if asset.empty:
         raise ValueError("No overlapping dates between ticker and market data.")
 
+    side_norm = side.strip().lower()
+    if side_norm not in {"long", "short"}:
+        raise ValueError("Position side must be Long or Short.")
+
     if use_psar:
         asset["psar"] = parabolic_sar(
             asset["High"], asset["Low"], asset["Close"], start_step=start_step, step=step, max_step=max_step
         )
-        asset["signal"] = (asset["Close"] > asset["psar"]).astype(int)
+        if side_norm == "long":
+            asset["signal"] = (asset["Close"] > asset["psar"]).astype(int)
+        else:
+            asset["signal"] = (asset["Close"] < asset["psar"]).astype(int)
     else:
         asset["psar"] = pd.NA
         asset["signal"] = 1
@@ -185,6 +196,8 @@ def build_signal_df(
         cost_per_trade=cost_per_trade,
         hard_stop_pct=hard_stop_pct,
         trailing_stop_pct=trailing_stop_pct,
+        side=side_norm,
+        annual_margin_interest_rate=short_margin_rate_pct / 100.0,
     )
     return sim_df, market
 
@@ -211,7 +224,7 @@ def validate_cost_and_cash(cost_per_trade: float, initial_cash: float):
 
 def render_simulation():
     st.title("Simulation Lab")
-    st.caption("Run PSAR backtests with optional hard-stop and rolling-stop controls.")
+    st.caption("Run PSAR backtests for long or short positions with optional hard-stop and rolling-stop controls.")
 
     if st.button("← Back to Dashboard", key="sim_back_to_dashboard"):
         st.session_state.pending_section = "Dashboard"
@@ -227,6 +240,7 @@ def render_simulation():
             start_date = st.date_input("Begin date", key="sim_start_date")
             end_date = st.date_input("End date", key="sim_end_date")
         with col2:
+            position_side = st.radio("Position side", ["Long", "Short"], key="sim_position_side", horizontal=True)
             use_psar = st.checkbox("Use PSAR entries/exits", key="sim_use_psar")
             start_step_text = st.text_input("PSAR start step", key="sim_start_step")
             step_text = st.text_input("PSAR step", key="sim_step")
@@ -234,6 +248,11 @@ def render_simulation():
         with col3:
             cost_per_trade_text = st.text_input("Cost per trade ($)", key="sim_cost_per_trade")
             initial_cash_text = st.text_input("Starting account value ($)", key="sim_initial_cash")
+            short_margin_rate_text = st.text_input(
+                "Short margin rate % (annual)",
+                key="sim_short_margin_rate_pct",
+                help="Applied only in Short mode. Wealthsimple Core USD default is 7.25%.",
+            )
 
         c1, c2 = st.columns(2)
         with c1:
@@ -269,6 +288,9 @@ def render_simulation():
         hard_stop_pct = parse_optional_pct(hard_text, "Hard stop %", hard_enabled)
         rolling_stop_pct = parse_optional_pct(rolling_text, "Rolling stop %", rolling_enabled)
         validate_cost_and_cash(cost_per_trade, initial_cash)
+        short_margin_rate_pct = parse_float_input(short_margin_rate_text, "Short margin rate %")
+        if short_margin_rate_pct < 0:
+            raise ValueError("Short margin rate % cannot be negative.")
 
         if use_psar:
             start_step = parse_float_input(start_step_text, "PSAR start step")
@@ -291,6 +313,8 @@ def render_simulation():
         "hard_stop_pct": hard_stop_pct,
         "rolling_stop_pct": rolling_stop_pct,
         "use_psar": use_psar,
+        "position_side": position_side,
+        "short_margin_rate_pct": short_margin_rate_pct,
     }
 
     if should_run:
@@ -309,6 +333,8 @@ def render_simulation():
                     hard_stop_pct,
                     rolling_stop_pct,
                     use_psar=use_psar,
+                    side=position_side,
+                    short_margin_rate_pct=short_margin_rate_pct,
                 )
             except ValueError as exc:
                 st.error(str(exc))
@@ -316,7 +342,7 @@ def render_simulation():
 
         buy_hold = buy_and_hold_equity(sim_df["Close"], initial_cash=initial_cash)
         market_equity = buy_and_hold_equity(market["Close"], initial_cash=initial_cash)
-        metrics = summarize_run(sim_df, market["Close"].pct_change().fillna(0.0))
+        metrics = summarize_run(sim_df, market["Close"].pct_change().fillna(0.0), side=position_side.lower())
         st.subheader("Backtest Results")
         st.dataframe(pd.DataFrame.from_dict(metrics, orient="index", columns=["Value"]).style.format("{:.4f}"), use_container_width=True)
 
@@ -324,22 +350,49 @@ def render_simulation():
         st.line_chart(sim_df[["equity"]].rename(columns={"equity": "Strategy"}))
 
         st.subheader(f"Strategy vs Buy & Hold ({ticker})")
-        st.line_chart(pd.DataFrame({"Strategy": sim_df["equity"], "Buy & Hold": buy_hold}, index=sim_df.index))
+        if position_side.lower() == "short":
+            inverse_buy_hold = (2 * initial_cash) - buy_hold
+            st.line_chart(
+                pd.DataFrame(
+                    {"Strategy (Short)": sim_df["equity"], "Buy & Hold": buy_hold, "Inverse Buy & Hold": inverse_buy_hold},
+                    index=sim_df.index,
+                )
+            )
+        else:
+            st.line_chart(pd.DataFrame({"Strategy": sim_df["equity"], "Buy & Hold": buy_hold}, index=sim_df.index))
 
         st.subheader("Strategy vs Market Portfolio")
         st.line_chart(pd.DataFrame({"Strategy": sim_df["equity"], f"Market ({market_ticker})": market_equity}, index=sim_df.index))
 
-        st.subheader("Price chart with buy/sell markers")
+        marker_title = "Price chart with short/cover markers" if position_side.lower() == "short" else "Price chart with buy/sell markers"
+        st.subheader(marker_title)
         base = pd.DataFrame({"Date": sim_df.index, "Close": sim_df["Close"]})
-        buys = sim_df.dropna(subset=["buy_price"]).copy()
-        buys["Date"] = buys.index
-        sells = sim_df.dropna(subset=["sell_price"]).copy()
-        sells["Date"] = sells.index
+        if position_side.lower() == "short":
+            shorts = sim_df.dropna(subset=["short_price"]).copy()
+            shorts["Date"] = shorts.index
+            covers = sim_df.dropna(subset=["cover_price"]).copy()
+            covers["Date"] = covers.index
+        else:
+            buys = sim_df.dropna(subset=["buy_price"]).copy()
+            buys["Date"] = buys.index
+            sells = sim_df.dropna(subset=["sell_price"]).copy()
+            sells["Date"] = sells.index
 
         line = alt.Chart(base).mark_line().encode(x="Date:T", y="Close:Q")
-        buy_marks = alt.Chart(buys).mark_point(shape="triangle-up", color="green", size=90).encode(x="Date:T", y="buy_price:Q")
-        sell_marks = alt.Chart(sells).mark_point(shape="triangle-down", color="red", size=90).encode(x="Date:T", y="sell_price:Q")
-        st.altair_chart((line + buy_marks + sell_marks).interactive(), use_container_width=True)
+        if position_side.lower() == "short":
+            short_marks = alt.Chart(shorts).mark_point(shape="triangle-down", color="red", size=90).encode(x="Date:T", y="short_price:Q")
+            cover_marks = alt.Chart(covers).mark_point(shape="triangle-up", color="green", size=90).encode(x="Date:T", y="cover_price:Q")
+            st.altair_chart((line + short_marks + cover_marks).interactive(), use_container_width=True)
+        else:
+            buy_marks = alt.Chart(buys).mark_point(shape="triangle-up", color="green", size=90).encode(x="Date:T", y="buy_price:Q")
+            sell_marks = alt.Chart(sells).mark_point(shape="triangle-down", color="red", size=90).encode(x="Date:T", y="sell_price:Q")
+            st.altair_chart((line + buy_marks + sell_marks).interactive(), use_container_width=True)
+
+        if position_side.lower() == "short":
+            daily_interest = float(sim_df["margin_interest"].sum())
+            st.caption(
+                f"Short mode applies daily margin interest at {short_margin_rate_pct:.2f}% annualized. Accrued interest in this run: ${daily_interest:,.2f}."
+            )
 
         st.session_state.last_simulation_signature = signature
 
@@ -366,6 +419,8 @@ def render_simulation():
                 "hard_stop_pct": hard_stop_pct,
                 "rolling_stop_pct": rolling_stop_pct,
                 "use_psar": use_psar,
+                "position_side": position_side.lower(),
+                "short_margin_rate_pct": short_margin_rate_pct,
                 "created_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
         )
@@ -428,8 +483,10 @@ def render_data_storage():
                     st.session_state.sim_start_step = ""
                     st.session_state.sim_step = ""
                     st.session_state.sim_max_step = ""
+                    st.session_state.sim_position_side = "Long"
                     st.session_state.sim_cost_per_trade = "1.0"
                     st.session_state.sim_initial_cash = "10000.0"
+                    st.session_state.sim_short_margin_rate_pct = "7.25"
                     st.session_state.sim_hard_enabled = False
                     st.session_state.sim_hard_pct = ""
                     st.session_state.sim_rolling_enabled = False
@@ -448,6 +505,11 @@ def render_data_storage():
 def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
     end = dt.date.today()
     start = end - dt.timedelta(days=365)
+    side = strategy.get("position_side", "long")
+    side_norm = str(side).strip().lower() if side is not None else "long"
+    if side_norm not in {"long", "short"}:
+        side_norm = "long"
+    short_margin_rate_pct = float(strategy.get("short_margin_rate_pct", 7.25) or 7.25)
     try:
         sim_df, _ = build_signal_df(
             strategy["ticker"],
@@ -462,6 +524,8 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
             hard_stop_pct=strategy["hard_stop_pct"],
             trailing_stop_pct=strategy["rolling_stop_pct"],
             use_psar=strategy.get("use_psar", True),
+            side=side_norm,
+            short_margin_rate_pct=short_margin_rate_pct,
         )
     except Exception:
         return "No Data", "gray", "Unable to load quote history", float("-inf")
@@ -469,9 +533,13 @@ def strategy_decision(strategy: dict) -> tuple[str, str, str, float]:
     latest = int(sim_df["position"].iloc[-1])
     manual_buy_date = parse_optional_date(strategy.get("buy_date", ""))
     if manual_buy_date is not None:
-        latest = anchored_position(sim_df, manual_buy_date, strategy["hard_stop_pct"], strategy["rolling_stop_pct"])
-    label = "BUY" if latest == 1 else "SELL"
-    color = "#0A7D34" if latest == 1 else "#BA1A1A"
+        latest = anchored_position(sim_df, manual_buy_date, strategy["hard_stop_pct"], strategy["rolling_stop_pct"], side=side_norm)
+    if side_norm == "short":
+        label = "SHORT" if latest == 1 else "COVER"
+        color = "#BA1A1A" if latest == 1 else "#0A7D34"
+    else:
+        label = "BUY" if latest == 1 else "SELL"
+        color = "#0A7D34" if latest == 1 else "#BA1A1A"
     detail = f"Last close: ${sim_df['Close'].iloc[-1]:.2f}"
     sim_return = float(sim_df["equity"].iloc[-1] / sim_df["equity"].iloc[0] - 1.0)
     return label, color, detail, sim_return
@@ -482,12 +550,16 @@ def anchored_position(
     buy_date: dt.date,
     hard_stop_pct: float | None,
     trailing_stop_pct: float | None,
+    side: str = "long",
 ) -> int:
     if sim_df.empty:
         return 0
 
     close = sim_df["Close"].astype(float)
     target_pos = sim_df["signal"].shift(1).fillna(0).astype(int)
+    side_norm = side.strip().lower()
+    if side_norm not in {"long", "short"}:
+        side_norm = "long"
     buy_ts = pd.Timestamp(buy_date)
 
     if buy_ts > close.index[-1]:
@@ -504,6 +576,7 @@ def anchored_position(
     invested = 1
     entry_price = float(close.iloc[anchor_loc])
     highest_close = entry_price
+    lowest_close = entry_price
     # The manual buy date represents an already-open position. If the model signal was
     # already long on that date, we should not immediately re-enter after a stop unless
     # there is a fresh flat->long cycle.
@@ -521,12 +594,21 @@ def anchored_position(
 
         if invested == 1:
             highest_close = max(highest_close, price)
+            lowest_close = min(lowest_close, price)
             candidate_levels: list[float] = []
-            if hard_stop_pct is not None:
-                candidate_levels.append(entry_price * (1 - hard_stop_pct))
-            if trailing_stop_pct is not None:
-                candidate_levels.append(highest_close * (1 - trailing_stop_pct))
-            if candidate_levels and price <= max(candidate_levels):
+            if side_norm == "short":
+                if hard_stop_pct is not None:
+                    candidate_levels.append(entry_price * (1 + hard_stop_pct))
+                if trailing_stop_pct is not None:
+                    candidate_levels.append(lowest_close * (1 + trailing_stop_pct))
+                stop_triggered = bool(candidate_levels) and price >= min(candidate_levels)
+            else:
+                if hard_stop_pct is not None:
+                    candidate_levels.append(entry_price * (1 - hard_stop_pct))
+                if trailing_stop_pct is not None:
+                    candidate_levels.append(highest_close * (1 - trailing_stop_pct))
+                stop_triggered = bool(candidate_levels) and price <= max(candidate_levels)
+            if stop_triggered:
                 desired = 0
 
         if desired != invested:
@@ -534,10 +616,12 @@ def anchored_position(
             if invested == 1:
                 entry_price = price
                 highest_close = price
+                lowest_close = price
                 allow_reentry = False
             else:
                 entry_price = 0.0
                 highest_close = 0.0
+                lowest_close = 0.0
 
     return invested
 
@@ -546,6 +630,10 @@ def normalize_strategy_fields(strategy: dict) -> dict:
     strategy.setdefault("notes", "")
     strategy.setdefault("use_psar", True)
     strategy.setdefault("buy_date", "")
+    side = str(strategy.get("position_side", "long")).strip().lower()
+    strategy["position_side"] = side if side in {"long", "short"} else "long"
+    if strategy.get("short_margin_rate_pct") is None:
+        strategy["short_margin_rate_pct"] = 7.25
     tags = strategy.get("tags", [])
     if not isinstance(tags, list):
         tags = []
@@ -584,9 +672,9 @@ def render_strategy_notes():
 
     notes_value = st.text_area("Notes", value=strategy.get("notes", ""), height=220, key=f"notes_text_{idx}")
     buy_date_value = st.text_input(
-        "Date bought (optional, YYYY-MM-DD)",
+        "Position entered (optional, YYYY-MM-DD)",
         value=strategy.get("buy_date", ""),
-        help="If set, Dashboard BUY/SELL uses this as your personal buy date and anchors entry to the prior close.",
+        help="If set, Dashboard signal uses this as your personal entry date and anchors entry to the prior close.",
         key=f"notes_buy_date_{idx}",
     )
     tags_value = st.text_input(
@@ -602,7 +690,7 @@ def render_strategy_notes():
             st.session_state.strategies[idx]["notes"] = notes_value
             normalized_buy_date = (buy_date_value or "").strip()
             if normalized_buy_date and parse_optional_date(normalized_buy_date) is None:
-                st.error("Date bought must be in YYYY-MM-DD format.")
+                st.error("Position entered must be in YYYY-MM-DD format.")
                 return
             st.session_state.strategies[idx]["buy_date"] = normalized_buy_date
             st.session_state.strategies[idx]["tags"] = parse_tags(tags_value)
@@ -617,7 +705,7 @@ def render_strategy_notes():
 def render_dashboard():
     st.title("Strategy Dashboard")
 
-    sort_buy_first = st.checkbox("Sort BUY signals first", key="dash_sort_buy_first")
+    sort_buy_first = st.checkbox("Sort active signals first", key="dash_sort_buy_first")
     sort_return_desc = st.checkbox("Sort by simulation return (high → low)", key="dash_sort_return_desc")
 
     search_col, clear_col = st.columns([4, 1])
@@ -659,7 +747,7 @@ def render_dashboard():
             active_tag = st.session_state.dash_active_tag
             tags = [tag.lower() for tag in row["strategy"].get("tags", [])]
             tag_rank = 0 if active_tag and active_tag in tags else 1
-            buy_rank = 0 if row["signal"] == "BUY" else 1
+            buy_rank = 0 if row["signal"] in {"BUY", "SHORT"} else 1
             return_rank = -row["sim_return"] if row["sim_return"] != float("-inf") else float("inf")
 
             key_parts = []
@@ -691,6 +779,7 @@ def render_dashboard():
             stop_text = " | ".join(stops) if stops else "No stops"
             st.markdown(f"**{strat['name']}** ({strat['ticker']})  ")
             tags_text = ", ".join(strat.get("tags", [])) if strat.get("tags") else "No tags"
+            side_text = "SHORT" if strat.get("position_side", "long") == "short" else "LONG"
             mode_text = (
                 f"PSAR: start={strat['start_step']}, step={strat['step']}, max={strat['max_step']}"
                 if strat.get("use_psar", True)
@@ -698,11 +787,14 @@ def render_dashboard():
             )
             buy_date = parse_optional_date(strat.get("buy_date", ""))
             buy_date_text = (
-                f"Date bought: {buy_date.isoformat()} (entry anchors on prior close)"
+                f"Position entered: {buy_date.isoformat()} (entry anchors on prior close)"
                 if buy_date is not None
-                else "Date bought: Simulation"
+                else "Position entered: Simulation"
             )
-            st.caption(f"{mode_text} • {stop_text} • {buy_date_text} • {detail} • Tags: {tags_text}")
+            extra = ""
+            if strat.get("position_side", "long") == "short":
+                extra = f" • Short margin: {float(strat.get('short_margin_rate_pct', 7.25)):.2f}%"
+            st.caption(f"Side: {side_text} • {mode_text} • {stop_text} • {buy_date_text}{extra} • {detail} • Tags: {tags_text}")
         with right:
             st.markdown(
                 f"<div style='background:{color};padding:0.6rem;border-radius:0.4rem;color:white;text-align:center;font-weight:700'>{signal}</div>",
@@ -717,11 +809,13 @@ def render_dashboard():
                     st.session_state.sim_start_date = today - dt.timedelta(days=365 * 2)
                     st.session_state.sim_end_date = today
                     st.session_state.sim_use_psar = bool(strat.get("use_psar", True))
+                    st.session_state.sim_position_side = "Short" if strat.get("position_side", "long") == "short" else "Long"
                     st.session_state.sim_start_step = str(strat["start_step"] if strat.get("start_step") is not None else SIM_DEFAULTS["sim_start_step"])
                     st.session_state.sim_step = str(strat["step"] if strat.get("step") is not None else SIM_DEFAULTS["sim_step"])
                     st.session_state.sim_max_step = str(strat["max_step"] if strat.get("max_step") is not None else SIM_DEFAULTS["sim_max_step"])
                     st.session_state.sim_cost_per_trade = "1.0"
                     st.session_state.sim_initial_cash = "10000.0"
+                    st.session_state.sim_short_margin_rate_pct = str(float(strat.get("short_margin_rate_pct", 7.25)))
                     st.session_state.sim_hard_enabled = strat["hard_stop_pct"] is not None
                     st.session_state.sim_hard_pct = (
                         str(strat["hard_stop_pct"] * 100) if strat["hard_stop_pct"] is not None else SIM_DEFAULTS["sim_hard_pct"]
