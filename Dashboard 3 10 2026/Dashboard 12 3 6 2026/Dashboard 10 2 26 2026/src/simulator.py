@@ -13,6 +13,8 @@ def simulate_long_flat(
     cost_per_trade: float,
     hard_stop_pct: float | None = None,
     trailing_stop_pct: float | None = None,
+    side: str = "long",
+    annual_margin_interest_rate: float = 0.0725,
 ) -> pd.DataFrame:
     """Simulate a long/flat strategy with all-in/all-out allocation and fixed trade costs.
 
@@ -20,6 +22,10 @@ def simulate_long_flat(
     """
     idx = close.index
     target_pos = signal.shift(1).fillna(0).astype(int)
+
+    side_norm = side.strip().lower()
+    if side_norm not in {"long", "short"}:
+        raise ValueError("side must be either 'long' or 'short'.")
 
     cash = float(initial_cash)
     shares = 0.0
@@ -33,33 +39,54 @@ def simulate_long_flat(
     sells = []
     stop_levels = []
     stop_exits = []
+    short_entries = []
+    short_covers = []
+    margin_interest = []
 
     entry_price: float | None = None
     highest_close: float | None = None
+    lowest_close: float | None = None
+    accrued_margin_interest = 0.0
+    daily_margin_rate = max(0.0, float(annual_margin_interest_rate)) / 360.0
 
     prev_equity = float(initial_cash)
     for dt, price in close.items():
         buy_price = np.nan
         sell_price = np.nan
+        short_price = np.nan
+        cover_price = np.nan
         desired = int(target_pos.loc[dt])
 
         stop_level = np.nan
         stop_exit = 0
         if invested == 1:
-            if highest_close is None:
-                highest_close = float(price)
+            if side_norm == "long":
+                if highest_close is None:
+                    highest_close = float(price)
+                else:
+                    highest_close = max(highest_close, float(price))
             else:
-                highest_close = max(highest_close, float(price))
+                if lowest_close is None:
+                    lowest_close = float(price)
+                else:
+                    lowest_close = min(lowest_close, float(price))
 
             candidate_levels: list[float] = []
-            if hard_stop_pct is not None and entry_price is not None:
-                candidate_levels.append(entry_price * (1 - hard_stop_pct))
-            if trailing_stop_pct is not None:
-                candidate_levels.append(highest_close * (1 - trailing_stop_pct))
+            if side_norm == "long":
+                if hard_stop_pct is not None and entry_price is not None:
+                    candidate_levels.append(entry_price * (1 - hard_stop_pct))
+                if trailing_stop_pct is not None and highest_close is not None:
+                    candidate_levels.append(highest_close * (1 - trailing_stop_pct))
+            else:
+                if hard_stop_pct is not None and entry_price is not None:
+                    candidate_levels.append(entry_price * (1 + hard_stop_pct))
+                if trailing_stop_pct is not None and lowest_close is not None:
+                    candidate_levels.append(lowest_close * (1 + trailing_stop_pct))
 
             if candidate_levels:
-                stop_level = max(candidate_levels)
-                if price <= stop_level:
+                stop_level = max(candidate_levels) if side_norm == "long" else min(candidate_levels)
+                stop_hit = price <= stop_level if side_norm == "long" else price >= stop_level
+                if stop_hit:
                     desired = 0
                     stop_exit = 1
 
@@ -68,28 +95,63 @@ def simulate_long_flat(
                 if cash > cost_per_trade:
                     cash -= cost_per_trade
                     shares = cash / price
-                    cash = 0.0
+                    if side_norm == "long":
+                        cash = 0.0
                     invested = 1
                     entry_price = float(price)
-                    highest_close = float(price)
-                    buy_price = float(price)
+                    if side_norm == "long":
+                        highest_close = float(price)
+                        lowest_close = None
+                        buy_price = float(price)
+                    else:
+                        highest_close = None
+                        lowest_close = float(price)
+                        accrued_margin_interest = 0.0
+                        short_price = float(price)
+                        buy_price = np.nan
+                        sell_price = float(price)
                     trade_cost = cost_per_trade
                 else:
                     trade_cost = 0.0
             else:
-                cash += shares * price
+                if side_norm == "long":
+                    cash += shares * price
+                else:
+                    cash = cash + (entry_price - float(price)) * shares - accrued_margin_interest
                 shares = 0.0
                 if cash > 0:
                     cash = max(0.0, cash - cost_per_trade)
                 invested = 0
                 entry_price = None
                 highest_close = None
-                sell_price = float(price)
+                lowest_close = None
+                if side_norm == "long":
+                    sell_price = float(price)
+                else:
+                    buy_price = float(price)
+                    cover_price = float(price)
+                accrued_margin_interest = 0.0
                 trade_cost = cost_per_trade
         else:
             trade_cost = 0.0
 
-        eq = cash + shares * price
+        if side_norm == "short":
+            if invested == 1 and shares > 0:
+                daily_interest = shares * float(price) * daily_margin_rate
+                accrued_margin_interest += daily_interest
+            else:
+                daily_interest = 0.0
+            margin_interest.append(daily_interest)
+        else:
+            margin_interest.append(0.0)
+
+        if side_norm == "short":
+            if invested == 1 and entry_price is not None:
+                eq = cash + (entry_price - float(price)) * shares - accrued_margin_interest
+            else:
+                eq = cash
+        else:
+            eq = cash + shares * price
         ret = 0.0 if prev_equity == 0 else (eq / prev_equity - 1)
 
         equity.append(eq)
@@ -100,6 +162,8 @@ def simulate_long_flat(
         sells.append(sell_price)
         stop_levels.append(stop_level)
         stop_exits.append(stop_exit)
+        short_entries.append(short_price)
+        short_covers.append(cover_price)
         prev_equity = eq
 
     out = pd.DataFrame(
@@ -114,26 +178,37 @@ def simulate_long_flat(
             "sell_price": sells,
             "stop_level": stop_levels,
             "stop_exit": stop_exits,
+            "short_price": short_entries,
+            "cover_price": short_covers,
+            "margin_interest": margin_interest,
         },
         index=idx,
     )
     return out
 
 
-def calculate_trade_returns(strategy_df: pd.DataFrame) -> list[float]:
+def calculate_trade_returns(strategy_df: pd.DataFrame, side: str = "long") -> list[float]:
+    side_norm = side.strip().lower()
     trade_returns: list[float] = []
     entry_price: float | None = None
 
     for _, row in strategy_df.iterrows():
-        buy_price = row.get("buy_price")
-        sell_price = row.get("sell_price")
-
-        if pd.notna(buy_price):
-            entry_price = float(buy_price)
-
-        if pd.notna(sell_price) and entry_price is not None and entry_price > 0:
-            trade_returns.append(float(sell_price) / entry_price - 1.0)
-            entry_price = None
+        if side_norm == "short":
+            short_price = row.get("short_price")
+            cover_price = row.get("cover_price")
+            if pd.notna(short_price):
+                entry_price = float(short_price)
+            if pd.notna(cover_price) and entry_price is not None and entry_price > 0:
+                trade_returns.append(entry_price / float(cover_price) - 1.0)
+                entry_price = None
+        else:
+            buy_price = row.get("buy_price")
+            sell_price = row.get("sell_price")
+            if pd.notna(buy_price):
+                entry_price = float(buy_price)
+            if pd.notna(sell_price) and entry_price is not None and entry_price > 0:
+                trade_returns.append(float(sell_price) / entry_price - 1.0)
+                entry_price = None
 
     return trade_returns
 
@@ -143,14 +218,14 @@ def buy_and_hold_equity(close: pd.Series, initial_cash: float) -> pd.Series:
     return (close / start) * float(initial_cash)
 
 
-def summarize_run(strategy_df: pd.DataFrame, benchmark_returns: pd.Series) -> dict[str, float]:
+def summarize_run(strategy_df: pd.DataFrame, benchmark_returns: pd.Series, side: str = "long") -> dict[str, float]:
     strategy_returns = strategy_df["strategy_return"].fillna(0.0)
     aligned_bench = benchmark_returns.reindex(strategy_df.index).fillna(0.0)
     position_change = strategy_df["position"].diff().abs().fillna(strategy_df["position"]).astype(float)
     turnover = float(position_change.sum())
     invested_pct = float(strategy_df["position"].mean())
     metrics = summarize_performance(strategy_returns, aligned_bench, turnover=turnover, invested_pct=invested_pct)
-    trade_returns = calculate_trade_returns(strategy_df)
+    trade_returns = calculate_trade_returns(strategy_df, side=side)
     winning_trades = sum(1 for ret in trade_returns if ret > 0)
     losing_trades = sum(1 for ret in trade_returns if ret < 0)
     if losing_trades == 0:
