@@ -191,7 +191,7 @@ $worker.WorkerSupportsCancellation = $false
 
 $script:resultRows = @()
 
-$worker.DoWork += {
+$doWorkHandler = [System.ComponentModel.DoWorkEventHandler]{
     param($sender, $e)
 
     $sourceUrl = $e.Argument
@@ -233,7 +233,7 @@ $worker.DoWork += {
     $e.Result = $importRows
 }
 
-$worker.ProgressChanged += {
+$progressChangedHandler = [System.ComponentModel.ProgressChangedEventHandler]{
     param($sender, $e)
     $progress.Value = [Math]::Min(100, [Math]::Max(0, $e.ProgressPercentage))
     $statusLabel.Text = "Status: Running ($($e.ProgressPercentage)%)"
@@ -242,7 +242,7 @@ $worker.ProgressChanged += {
     }
 }
 
-$worker.RunWorkerCompleted += {
+$runWorkerCompletedHandler = [System.ComponentModel.RunWorkerCompletedEventHandler]{
     param($sender, $e)
     if ($e.Error) {
         $statusLabel.Text = "Status: Error"
@@ -257,6 +257,10 @@ $worker.RunWorkerCompleted += {
     $downloadButton.Enabled = $script:resultRows.Count -gt 0
     $startButton.Enabled = $true
 }
+
+$worker.add_DoWork($doWorkHandler)
+$worker.add_ProgressChanged($progressChangedHandler)
+$worker.add_RunWorkerCompleted($runWorkerCompletedHandler)
 
 $startButton.Add_Click({
     $startButton.Enabled = $false
