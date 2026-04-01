@@ -148,6 +148,19 @@ function Get-ProductLinksFromHtml {
     return @($urls | Sort-Object -Unique)
 }
 
+function Get-ProductLinksFromAnchorsOnly {
+    param([string]$Html)
+    $matches = [regex]::Matches($Html, 'href\s*=\s*"([^"]*?/en/products-systems/[^"]+)"', 'IgnoreCase')
+    $urls = @()
+    foreach ($m in $matches) {
+        $href = $m.Groups[1].Value.Trim()
+        if (Is-LikelyProductUrl -Url $href) {
+            $urls += (Normalize-ProductUrl -Url $href)
+        }
+    }
+    return @($urls | Sort-Object -Unique)
+}
+
 function Get-ProductsFromPageHtml {
     param(
         [string]$Html,
@@ -293,23 +306,44 @@ function Invoke-Extraction {
     [System.Windows.Forms.Application]::DoEvents()
 
     $allProducts = New-Object System.Collections.Generic.List[object]
-    $count = $links.Count
-    for ($i = 0; $i -lt $count; $i++) {
-        $link = $links[$i]
+    $queue = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($link in $links) {
+        if ($seen.Add($link)) {
+            [void]$queue.Add($link)
+        }
+    }
+
+    $i = 0
+    while ($i -lt $queue.Count) {
+        $link = $queue[$i]
         try {
             $html = (Invoke-WebRequest -Uri $link -UseBasicParsing -TimeoutSec 60).Content
             $products = Get-ProductsFromPageHtml -Html $html -PageUrl $link
             foreach ($p in $products) { [void]$allProducts.Add($p) }
-            $msg = "[$($i + 1)/$count] $link -> $($products.Count) rows"
+
+            if ($products.Count -eq 0) {
+                $childLinks = Get-ProductLinksFromAnchorsOnly -Html $html
+                foreach ($child in $childLinks) {
+                    if ($seen.Add($child)) {
+                        [void]$queue.Add($child)
+                    }
+                }
+                $msg = "[$($i + 1)/$($queue.Count)] $link -> 0 rows (queued +$($childLinks.Count) product URLs)"
+            } else {
+                $msg = "[$($i + 1)/$($queue.Count)] $link -> $($products.Count) rows"
+            }
         } catch {
-            $msg = "[$($i + 1)/$count] Failed: $link"
+            $msg = "[$($i + 1)/$($queue.Count)] Failed: $link"
         }
 
-        $pct = [Math]::Max(1, [int](($i + 1) * 100 / $count))
+        $pct = [Math]::Max(1, [int](($i + 1) * 100 / [Math]::Max(1, $queue.Count)))
         $progress.Value = [Math]::Min(100, [Math]::Max(0, $pct))
         $statusLabel.Text = "Status: Running ($pct%)"
         $logBox.AppendText("$msg`r`n")
         [System.Windows.Forms.Application]::DoEvents()
+        $i++
     }
 
     $dedup = $allProducts | Group-Object Name, ProductCode | ForEach-Object { $_.Group[0] }
