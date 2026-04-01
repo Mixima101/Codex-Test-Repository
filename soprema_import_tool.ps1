@@ -46,7 +46,7 @@ function Is-LikelyProductUrl {
     if ($normalized.StartsWith('/')) {
         $normalized = "https://www.soprema.ca$normalized"
     }
-    $m = [regex]::Match($normalized, '^https?://[^/]+/en/products-systems/([^/?#]+)(?:[/?#].*)?$', 'IgnoreCase')
+    $m = [regex]::Match($normalized, '^https?://[^/]+/en/products-systems/([^/?#]+)(?:[?#].*)?$', 'IgnoreCase')
     return $m.Success
 }
 
@@ -57,6 +57,7 @@ function Normalize-ProductUrl {
     if ($normalized.StartsWith('/')) {
         $normalized = "https://www.soprema.ca$normalized"
     }
+    $normalized = [System.Net.WebUtility]::HtmlDecode($normalized)
     $normalized = $normalized -replace '[?#].*$', ''
     return $normalized.TrimEnd('/')
 }
@@ -325,12 +326,14 @@ function Invoke-Extraction {
 
             if ($products.Count -eq 0) {
                 $childLinks = Get-ProductLinksFromAnchorsOnly -Html $html
+                $addedCount = 0
                 foreach ($child in $childLinks) {
                     if ($seen.Add($child)) {
                         [void]$queue.Add($child)
+                        $addedCount++
                     }
                 }
-                $msg = "[$($i + 1)/$($queue.Count)] $link -> 0 rows (queued +$($childLinks.Count) product URLs)"
+                $msg = "[$($i + 1)/$($queue.Count)] $link -> 0 rows (queued +$addedCount product URLs)"
             } else {
                 $msg = "[$($i + 1)/$($queue.Count)] $link -> $($products.Count) rows"
             }
