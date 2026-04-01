@@ -185,22 +185,16 @@ $logBox.ScrollBars = 'Vertical'
 $logBox.ReadOnly = $true
 $form.Controls.Add($logBox)
 
-$worker = New-Object System.ComponentModel.BackgroundWorker
-$worker.WorkerReportsProgress = $true
-$worker.WorkerSupportsCancellation = $false
-
 $script:resultRows = @()
 
-$doWorkHandler = [System.ComponentModel.DoWorkEventHandler]{
-    param($sender, $e)
+function Invoke-Extraction {
+    param([string]$SourceUrl)
 
-    $sourceUrl = $e.Argument
     $mainHtml = $null
-
     if (Test-Path $defaultMainPagePath) {
         $mainHtml = Get-Content -Path $defaultMainPagePath -Raw -Encoding UTF8
     } else {
-        $mainHtml = (Invoke-WebRequest -Uri $sourceUrl -UseBasicParsing -TimeoutSec 60).Content
+        $mainHtml = (Invoke-WebRequest -Uri $SourceUrl -UseBasicParsing -TimeoutSec 60).Content
     }
 
     $links = Get-ProductLinksFromHtml -Html $mainHtml
@@ -210,57 +204,29 @@ $doWorkHandler = [System.ComponentModel.DoWorkEventHandler]{
 
     $allProducts = New-Object System.Collections.Generic.List[object]
     $count = $links.Count
-
     for ($i = 0; $i -lt $count; $i++) {
         $link = $links[$i]
         try {
             $html = (Invoke-WebRequest -Uri $link -UseBasicParsing -TimeoutSec 60).Content
             $products = Get-ProductsFromPageHtml -Html $html -PageUrl $link
             foreach ($p in $products) { [void]$allProducts.Add($p) }
-
-            $pct = [Math]::Max(1, [int](($i + 1) * 100 / $count))
-            $sender.ReportProgress($pct, "[$($i + 1)/$count] $link -> $($products.Count) rows")
+            $msg = "[$($i + 1)/$count] $link -> $($products.Count) rows"
         } catch {
-            $sender.ReportProgress([Math]::Max(1, [int](($i + 1) * 100 / $count)), "[$($i + 1)/$count] Failed: $link")
+            $msg = "[$($i + 1)/$count] Failed: $link"
         }
+
+        $pct = [Math]::Max(1, [int](($i + 1) * 100 / $count))
+        $progress.Value = [Math]::Min(100, [Math]::Max(0, $pct))
+        $statusLabel.Text = "Status: Running ($pct%)"
+        $logBox.AppendText("$msg`r`n")
+        [System.Windows.Forms.Application]::DoEvents()
     }
 
     $dedup = $allProducts | Group-Object Name, ProductCode | ForEach-Object { $_.Group[0] }
-    $importRows = foreach ($p in $dedup) {
+    return foreach ($p in $dedup) {
         New-ImportRow -Headers $headers -Description $p.Name -ProductCode $p.ProductCode -Unit $p.Unit
     }
-
-    $e.Result = $importRows
 }
-
-$progressChangedHandler = [System.ComponentModel.ProgressChangedEventHandler]{
-    param($sender, $e)
-    $progress.Value = [Math]::Min(100, [Math]::Max(0, $e.ProgressPercentage))
-    $statusLabel.Text = "Status: Running ($($e.ProgressPercentage)%)"
-    if ($e.UserState) {
-        $logBox.AppendText("$($e.UserState)`r`n")
-    }
-}
-
-$runWorkerCompletedHandler = [System.ComponentModel.RunWorkerCompletedEventHandler]{
-    param($sender, $e)
-    if ($e.Error) {
-        $statusLabel.Text = "Status: Error"
-        $logBox.AppendText("Error: $($e.Error.Message)`r`n")
-        $startButton.Enabled = $true
-        return
-    }
-
-    $script:resultRows = $e.Result
-    $statusLabel.Text = "Status: Complete. Found $($script:resultRows.Count) unique products."
-    $progress.Value = 100
-    $downloadButton.Enabled = $script:resultRows.Count -gt 0
-    $startButton.Enabled = $true
-}
-
-$worker.add_DoWork($doWorkHandler)
-$worker.add_ProgressChanged($progressChangedHandler)
-$worker.add_RunWorkerCompleted($runWorkerCompletedHandler)
 
 $startButton.Add_Click({
     $startButton.Enabled = $false
@@ -268,7 +234,19 @@ $startButton.Add_Click({
     $progress.Value = 0
     $logBox.Clear()
     $statusLabel.Text = 'Status: Starting...'
-    $worker.RunWorkerAsync($txtUrl.Text)
+    [System.Windows.Forms.Application]::DoEvents()
+
+    try {
+        $script:resultRows = Invoke-Extraction -SourceUrl $txtUrl.Text
+        $statusLabel.Text = "Status: Complete. Found $($script:resultRows.Count) unique products."
+        $progress.Value = 100
+        $downloadButton.Enabled = $script:resultRows.Count -gt 0
+    } catch {
+        $statusLabel.Text = "Status: Error"
+        $logBox.AppendText("Error: $($_.Exception.Message)`r`n")
+    } finally {
+        $startButton.Enabled = $true
+    }
 })
 
 $downloadButton.Add_Click({
