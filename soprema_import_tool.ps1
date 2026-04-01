@@ -39,6 +39,62 @@ function Infer-Unit {
     return ''
 }
 
+function Is-LikelyProductUrl {
+    param([string]$Url)
+    if ([string]::IsNullOrWhiteSpace($Url)) { return $false }
+    $normalized = $Url.Trim()
+    if ($normalized.StartsWith('/')) {
+        $normalized = "https://www.soprema.ca$normalized"
+    }
+    $m = [regex]::Match($normalized, '^https?://[^/]+/en/products-systems/([^/?#]+)$', 'IgnoreCase')
+    return $m.Success
+}
+
+function Get-ProductLinksFromAlgolia {
+    param(
+        [string]$ApplicationId,
+        [string]$ApiKey,
+        [string]$IndexName
+    )
+
+    $all = @()
+    $page = 0
+    $totalPages = 1
+
+    while ($page -lt $totalPages) {
+        $bodyObj = @{
+            query = ''
+            page = $page
+            hitsPerPage = 100
+        }
+        $body = $bodyObj | ConvertTo-Json -Depth 5
+        $uri = "https://$ApplicationId-dsn.algolia.net/1/indexes/$IndexName/query"
+
+        $response = Invoke-RestMethod -Method Post -Uri $uri -Headers @{
+            'X-Algolia-API-Key' = $ApiKey
+            'X-Algolia-Application-Id' = $ApplicationId
+        } -ContentType 'application/json' -Body $body -TimeoutSec 60
+
+        if ($null -ne $response.nbPages) {
+            $totalPages = [int]$response.nbPages
+        }
+
+        foreach ($hit in $response.hits) {
+            $u = ''
+            if ($hit.PSObject.Properties.Name -contains 'url') { $u = [string]$hit.url }
+            elseif ($hit.PSObject.Properties.Name -contains 'product_url') { $u = [string]$hit.product_url }
+
+            if (Is-LikelyProductUrl -Url $u) {
+                $all += $u
+            }
+        }
+
+        $page++
+    }
+
+    return $all | Sort-Object -Unique
+}
+
 function Get-ProductLinksFromHtml {
     param([string]$Html)
 
@@ -53,8 +109,25 @@ function Get-ProductLinksFromHtml {
 
         if ($href -match '/products-systems/$') { continue }
         if ($href -match '\.(jpg|jpeg|png|svg|pdf)$') { continue }
+        if (-not (Is-LikelyProductUrl -Url $href)) { continue }
 
         $urls += $href
+    }
+
+    # Prefer Algolia pagination when config is present in the HTML, because it includes
+    # all "Show more" products from the listing (not just initially rendered links).
+    try {
+        $appMatch = [regex]::Match($Html, '"applicationId":"([^"]+)"', 'IgnoreCase')
+        $keyMatch = [regex]::Match($Html, '"apiKey":"([^"]+)"', 'IgnoreCase')
+        $indexMatch = [regex]::Match($Html, '"indexName":"([^"]+)"', 'IgnoreCase')
+        if ($appMatch.Success -and $keyMatch.Success -and $indexMatch.Success) {
+            $algoliaLinks = Get-ProductLinksFromAlgolia -ApplicationId $appMatch.Groups[1].Value -ApiKey $keyMatch.Groups[1].Value -IndexName $indexMatch.Groups[1].Value
+            if ($algoliaLinks.Count -gt 0) {
+                return $algoliaLinks
+            }
+        }
+    } catch {
+        # Fall back to static link extraction if Algolia query fails.
     }
 
     return $urls | Sort-Object -Unique
@@ -201,6 +274,8 @@ function Invoke-Extraction {
     if ($links.Count -eq 0) {
         throw "No product links found from main page."
     }
+    $logBox.AppendText("Discovered $($links.Count) product page URLs.`r`n")
+    [System.Windows.Forms.Application]::DoEvents()
 
     $allProducts = New-Object System.Collections.Generic.List[object]
     $count = $links.Count
