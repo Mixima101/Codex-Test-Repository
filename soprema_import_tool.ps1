@@ -43,7 +43,7 @@ function Get-ProductLinksFromHtml {
     param([string]$Html)
 
     $matches = [regex]::Matches($Html, 'href\s*=\s*"([^"]*?/en/products-systems/[^"#?]+)"', 'IgnoreCase')
-    $urls = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $urls = @()
 
     foreach ($m in $matches) {
         $href = $m.Groups[1].Value.Trim()
@@ -54,10 +54,10 @@ function Get-ProductLinksFromHtml {
         if ($href -match '/products-systems/$') { continue }
         if ($href -match '\.(jpg|jpeg|png|svg|pdf)$') { continue }
 
-        [void]$urls.Add($href)
+        $urls += $href
     }
 
-    return $urls.ToArray() | Sort-Object
+    return $urls | Sort-Object -Unique
 }
 
 function Get-ProductsFromPageHtml {
