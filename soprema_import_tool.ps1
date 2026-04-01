@@ -223,9 +223,10 @@ function Invoke-Extraction {
     }
 
     $dedup = $allProducts | Group-Object Name, ProductCode | ForEach-Object { $_.Group[0] }
-    return foreach ($p in $dedup) {
+    $rows = foreach ($p in $dedup) {
         New-ImportRow -Headers $headers -Description $p.Name -ProductCode $p.ProductCode -Unit $p.Unit
     }
+    return $rows
 }
 
 $startButton.Add_Click({
