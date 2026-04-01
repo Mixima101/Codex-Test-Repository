@@ -46,8 +46,19 @@ function Is-LikelyProductUrl {
     if ($normalized.StartsWith('/')) {
         $normalized = "https://www.soprema.ca$normalized"
     }
-    $m = [regex]::Match($normalized, '^https?://[^/]+/en/products-systems/([^/?#]+)$', 'IgnoreCase')
+    $m = [regex]::Match($normalized, '^https?://[^/]+/en/products-systems/([^/?#]+)(?:[/?#].*)?$', 'IgnoreCase')
     return $m.Success
+}
+
+function Normalize-ProductUrl {
+    param([string]$Url)
+    if ([string]::IsNullOrWhiteSpace($Url)) { return '' }
+    $normalized = $Url.Trim()
+    if ($normalized.StartsWith('/')) {
+        $normalized = "https://www.soprema.ca$normalized"
+    }
+    $normalized = $normalized -replace '[?#].*$', ''
+    return $normalized.TrimEnd('/')
 }
 
 function Get-ProductLinksFromAlgolia {
@@ -85,14 +96,14 @@ function Get-ProductLinksFromAlgolia {
             elseif ($hit.PSObject.Properties.Name -contains 'product_url') { $u = [string]$hit.product_url }
 
             if (Is-LikelyProductUrl -Url $u) {
-                $all += $u
+                $all += (Normalize-ProductUrl -Url $u)
             }
         }
 
         $page++
     }
 
-    return $all | Sort-Object -Unique
+    return @($all | Sort-Object -Unique)
 }
 
 function Get-ProductLinksFromHtml {
@@ -111,7 +122,7 @@ function Get-ProductLinksFromHtml {
         if ($href -match '\.(jpg|jpeg|png|svg|pdf)$') { continue }
         if (-not (Is-LikelyProductUrl -Url $href)) { continue }
 
-        $urls += $href
+        $urls += (Normalize-ProductUrl -Url $href)
     }
 
     # Prefer Algolia pagination when config is present in the HTML, because it includes
@@ -121,16 +132,20 @@ function Get-ProductLinksFromHtml {
         $keyMatch = [regex]::Match($Html, '"apiKey":"([^"]+)"', 'IgnoreCase')
         $indexMatch = [regex]::Match($Html, '"indexName":"([^"]+)"', 'IgnoreCase')
         if ($appMatch.Success -and $keyMatch.Success -and $indexMatch.Success) {
-            $algoliaLinks = Get-ProductLinksFromAlgolia -ApplicationId $appMatch.Groups[1].Value -ApiKey $keyMatch.Groups[1].Value -IndexName $indexMatch.Groups[1].Value
+            $indexName = $indexMatch.Groups[1].Value
+            $algoliaLinks = @(Get-ProductLinksFromAlgolia -ApplicationId $appMatch.Groups[1].Value -ApiKey $keyMatch.Groups[1].Value -IndexName $indexName)
+            if ($algoliaLinks.Count -eq 0 -and $indexName -notmatch '_products$') {
+                $algoliaLinks = @(Get-ProductLinksFromAlgolia -ApplicationId $appMatch.Groups[1].Value -ApiKey $keyMatch.Groups[1].Value -IndexName ($indexName + '_products'))
+            }
             if ($algoliaLinks.Count -gt 0) {
-                return $algoliaLinks
+                return @($algoliaLinks)
             }
         }
     } catch {
         # Fall back to static link extraction if Algolia query fails.
     }
 
-    return $urls | Sort-Object -Unique
+    return @($urls | Sort-Object -Unique)
 }
 
 function Get-ProductsFromPageHtml {
@@ -270,7 +285,7 @@ function Invoke-Extraction {
         $mainHtml = (Invoke-WebRequest -Uri $SourceUrl -UseBasicParsing -TimeoutSec 60).Content
     }
 
-    $links = Get-ProductLinksFromHtml -Html $mainHtml
+    $links = @(Get-ProductLinksFromHtml -Html $mainHtml)
     if ($links.Count -eq 0) {
         throw "No product links found from main page."
     }
