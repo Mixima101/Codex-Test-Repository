@@ -1,0 +1,50 @@
+estimate_row,line_item,estimated_qty,unit,estimated_unit_price,estimated_total,actual_invoiced_price,source_note
+7,"1/2"" DENSDECK PRIME",100,SHEETS,36.5,3650,,Manual review needed: supplier invoices are image-only scans in this environment
+8,INSUL-LOCK FOAM ADHESIVE,11,BOX,880,9680,,Manual review needed: supplier invoices are image-only scans in this environment
+10,HPR BASE (97 FT2) - FIELD,34,ROLLS,538,18292,,Manual review needed: supplier invoices are image-only scans in this environment
+11,PRO-STOP FR PRIMER,1,PAILS,939,939,,Manual review needed: supplier invoices are image-only scans in this environment
+12,SA BASE IV - STRIPPING (97 FT2),5,ROLLS,515,2575,,Manual review needed: supplier invoices are image-only scans in this environment
+14,STRESSPLY IV PLUS CAP (75 FT2) - FIELD,44,ROLLS,599,26356,,Manual review needed: supplier invoices are image-only scans in this environment
+15,STRESSPLY IV PLUS CAP (75 FT2) - STRIPPING,6,ROLLS,599,3594,,Manual review needed: supplier invoices are image-only scans in this environment
+17,SOPRADRAIN 10-G (300 FT2),11,ROLLS,226.5,2491.5,,Manual review needed: supplier invoices are image-only scans in this environment
+19,CANT,285,FEET,2.5,712.5,,Manual review needed: supplier invoices are image-only scans in this environment
+20,TERM BAR,29,LENGTH,12.5,362.5,,Manual review needed: supplier invoices are image-only scans in this environment
+21,FIRETAPE,24,ROLLS,28,672,,Manual review needed: supplier invoices are image-only scans in this environment
+26,SEAL-TITE SINGLE PART STPE PITCH POCKET (4),1,BAGS,508,508,,Manual review needed: supplier invoices are image-only scans in this environment
+27,TUFF STUFF MS SILICONE SEALANT (24 / CASE),,CASE,790,0,,Manual review needed: supplier invoices are image-only scans in this environment
+28,DRAINS C/W U-FLOW,,EACH,550,0,,Manual review needed: supplier invoices are image-only scans in this environment
+29,GARLA-FLEX (30 FT2 / PL) - VERTICAL SEAMS,3,PAILS,542,1626,,Manual review needed: supplier invoices are image-only scans in this environment
+30,"6"" GARMESH - 150' - VERTICAL SEAMS",1,ROLLS,105,105,,Manual review needed: supplier invoices are image-only scans in this environment
+34,24 GAUGE PREFINISHED,10,SHEETS,75,750,,Manual review needed: supplier invoices are image-only scans in this environment
+35,26 GAUGE GALV,,SHEETS,50,0,,Manual review needed: supplier invoices are image-only scans in this environment
+36,FREIGHT - MATERIALS,1,LOADS,1150,1150,,Manual review needed: supplier invoices are image-only scans in this environment
+37,MISC,31.8,SQS,30,954,,Manual review needed: supplier invoices are image-only scans in this environment
+43,Crew / Scope Description,Quantity,Days/Hours,Rate,Total,,Manual review needed: supplier invoices are image-only scans in this environment
+44,Set up (Roof Load) - 5 man,1,days,2060,2060,,Manual review needed: supplier invoices are image-only scans in this environment
+45,Demolition - Fence + Insulation + Rubber Mat Store,2,days,2060,4120,,Manual review needed: supplier invoices are image-only scans in this environment
+46,Install Densdeck - Adh,0.75,days,2060,1545,,Manual review needed: supplier invoices are image-only scans in this environment
+47,Install Firetape,0.5,days,2060,1030,,Manual review needed: supplier invoices are image-only scans in this environment
+48,Torch Base,1.25,days,2060,2575,,Manual review needed: supplier invoices are image-only scans in this environment
+49,Torch Cap,1.25,days,2060,2575,,Manual review needed: supplier invoices are image-only scans in this environment
+50,Re-Install Insulation,0.75,days,2060,1545,,Manual review needed: supplier invoices are image-only scans in this environment
+51,Re-Install Rubber Matt + Fencing,0.5,days,2060,1030,,Manual review needed: supplier invoices are image-only scans in this environment
+52,Firewatch (2 men x 2 hrs each),8,days,175,1400,,Manual review needed: supplier invoices are image-only scans in this environment
+53,Metal Fabrication,285,feet,3.25,926.25,,Manual review needed: supplier invoices are image-only scans in this environment
+54,Metal Install,285,feet,4,1140,,Manual review needed: supplier invoices are image-only scans in this environment
+55,Carpentry (Cant),285,feet,1.75,498.75,,Manual review needed: supplier invoices are image-only scans in this environment
+56,MB Stripping,8,sqs,350,2800,,Manual review needed: supplier invoices are image-only scans in this environment
+57,Supervision %,,,0.06,1394.7,,Manual review needed: supplier invoices are image-only scans in this environment
+58,travel / 3 men / round trip,,trips,496,0,,Manual review needed: supplier invoices are image-only scans in this environment
+59,Overtime,,,0.1,2463.9700000000003,,Manual review needed: supplier invoices are image-only scans in this environment
+61,Overburden,,,0.25,6775.9175000000005,,Manual review needed: supplier invoices are image-only scans in this environment
+67,Truck & Fuel (10 Roofing / 3 Metal),13,Days,150,1950,,Manual review needed: supplier invoices are image-only scans in this environment
+68,Room & Board (5 Men),,Man Days,110,0,,Manual review needed: supplier invoices are image-only scans in this environment
+69,Crane,6,Hrs,295,1770,,Manual review needed: supplier invoices are image-only scans in this environment
+70,Dump + Rental Bin or Truck,2,Loads,1150,2300,,Manual review needed: supplier invoices are image-only scans in this environment
+71,"5 Year ""Contractor"" Warranty (3%)",,L/S,,0,,Manual review needed: supplier invoices are image-only scans in this environment
+72,Sub Trade - Panels (Addendum 3),1,L/S,15000,15000,,Manual review needed: supplier invoices are image-only scans in this environment
+73,Sub Trade - Glazing (Addendum 4),1,L/S,5000,5000,,Manual review needed: supplier invoices are image-only scans in this environment
+74,Safety Misc,31.8,SQS,10,318,,Manual review needed: supplier invoices are image-only scans in this environment
+75,"TEC (Truck, Equipment, Communications)",31.8,SQS,10,318,,Manual review needed: supplier invoices are image-only scans in this environment
+76,Propane (15 sqs / bottle / layer) (10 sqs - winter),6,UNITS,115,690,,Manual review needed: supplier invoices are image-only scans in this environment
+77,P-Can + Fence,1,Month,950,950,,Manual review needed: supplier invoices are image-only scans in this environment
